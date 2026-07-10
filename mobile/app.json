@@ -1,6 +1,6 @@
 {
   "name": "R-SPADE",
-  "slug": "r-spade",
+  "slug": "spade-king",
   "version": "1.0.0",
   "orientation": "landscape",
   "icon": "./assets/spade-club-logo.png",
@@ -89,5 +89,6 @@
     "eas": {
       "projectId": "86193910-7fe0-4c75-b67c-b17469d0a576"
     }
-  }
+  },
+  "owner": "spadekings-team"
 }
