@@ -1,0 +1,94 @@
+{
+  "name": "R-SPADE",
+  "slug": "r-spade",
+  "version": "1.0.0",
+  "orientation": "landscape",
+  "icon": "./assets/spade-club-logo.png",
+  "userInterfaceStyle": "dark",
+  "backgroundColor": "#000000",
+  "splash": {
+    "image": "./assets/spade-club-logo.png",
+    "resizeMode": "contain",
+    "backgroundColor": "#000000"
+  },
+  "ios": {
+    "supportsTablet": true,
+    "bundleIdentifier": "com.rimozo.rspade",
+    "requireFullScreen": true,
+    "backgroundColor": "#000000",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/spade-club-logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#000000",
+      "dark": {
+        "image": "./assets/spade-club-logo.png",
+        "backgroundColor": "#000000"
+      }
+    },
+    "infoPlist": {
+      "UIStatusBarStyle": "UIStatusBarStyleLightContent",
+      "UIViewControllerBasedStatusBarAppearance": false,
+      "UISupportedInterfaceOrientations": [
+        "UIInterfaceOrientationLandscapeLeft",
+        "UIInterfaceOrientationLandscapeRight"
+      ],
+      "UISupportedInterfaceOrientations~ipad": [
+        "UIInterfaceOrientationLandscapeLeft",
+        "UIInterfaceOrientationLandscapeRight"
+      ]
+    }
+  },
+  "android": {
+    "adaptiveIcon": {
+      "foregroundImage": "./assets/spade-club-logo.png",
+      "backgroundColor": "#000000"
+    },
+    "package": "com.rimozo.rspade",
+    "softwareKeyboardLayoutMode": "resize",
+    "backgroundColor": "#000000",
+    "userInterfaceStyle": "dark",
+    "screenOrientation": "landscape",
+    "splash": {
+      "image": "./assets/spade-club-logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#000000",
+      "dark": {
+        "image": "./assets/spade-club-logo.png",
+        "backgroundColor": "#000000"
+      }
+    }
+  },
+  "web": {
+    "backgroundColor": "#000000"
+  },
+  "plugins": [
+    "expo-font",
+    "expo-asset",
+    [
+      "expo-splash-screen",
+      {
+        "image": "./assets/spade-club-logo.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#000000",
+        "imageWidth": 160,
+        "dark": {
+          "image": "./assets/spade-club-logo.png",
+          "backgroundColor": "#000000"
+        }
+      }
+    ],
+    [
+      "expo-screen-orientation",
+      {
+        "initialOrientation": "LANDSCAPE"
+      }
+    ]
+  ],
+  "extra": {
+    "eas": {
+      "projectId": "23af2b03-f3c6-4704-9eca-c47a462eb38d"
+    }
+  },
+  "owner": "rimoderodrego"
+}

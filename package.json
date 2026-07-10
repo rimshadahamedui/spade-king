@@ -1,0 +1,12 @@
+{
+  "name": "r-spade",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "backend:dev": "npm --prefix backend run dev",
+    "backend:test": "npm --prefix backend test",
+    "backend:build": "npm --prefix backend run build",
+    "mobile:start": "npm --prefix mobile start",
+    "docker:up": "docker compose up --build"
+  }
+}

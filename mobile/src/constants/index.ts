@@ -1,0 +1,45 @@
+export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4000';
+export const API_PREFIX = '/api/v1';
+export const SOCKET_URL = process.env.EXPO_PUBLIC_SOCKET_URL ?? API_URL;
+
+export const SOCKET_EVENTS = {
+  CREATE_ROOM: 'createRoom',
+  JOIN_ROOM: 'joinRoom',
+  LEAVE_ROOM: 'leaveRoom',
+  CONFIRM_START: 'confirmStart',
+  PLAYER_READY: 'playerReady',
+  REQUEST_RESHUFFLE: 'requestReshuffle',
+  ACCEPT_RESHUFFLE: 'acceptReshuffle',
+  PLACE_BID: 'placeBid',
+  PLAY_CARD: 'playCard',
+  APPROVE_NEXT_ROUND: 'approveNextRound',
+  REQUEST_SUSPEND: 'requestSuspend',
+  SEND_CHAT: 'sendChat',
+  HEARTBEAT: 'heartbeat',
+  RECONNECT: 'reconnect',
+  DELETE_ROOM: 'deleteRoom',
+  ROOM_UPDATED: 'roomUpdated',
+  GAME_START: 'gameStart',
+  SHUFFLE: 'shuffle',
+  DEAL_CARDS: 'dealCards',
+  RESHUFFLE_STATUS: 'reshuffleStatus',
+  BIDDING_STARTED: 'biddingStarted',
+  BID_PLACED: 'bidPlaced',
+  PLAYING_STARTED: 'playingStarted',
+  CARD_PLAYED: 'cardPlayed',
+  END_TRICK: 'endTrick',
+  NEXT_ROUND: 'nextRound',
+  ROUND_SCORE: 'roundScore',
+  SCOREBOARD: 'scoreboard',
+  GAME_FINISHED: 'gameFinished',
+  PLAYER_DISCONNECTED: 'playerDisconnected',
+  PLAYER_RECONNECTED: 'playerReconnected',
+  SUSPEND_UPDATED: 'suspendUpdated',
+  CHAT_MESSAGE: 'chatMessage',
+  CHAT_HISTORY: 'chatHistory',
+  ROOM_CLOSED: 'roomClosed',
+  ERROR: 'error',
+  COUNTDOWN: 'countdown',
+} as const;
+
+export type RoomType = 3 | 4 | 5;
