@@ -13,6 +13,7 @@ import { RoomScreen } from '../screens/RoomScreen';
 import { GameScreen } from '../screens/GameScreen';
 import { ScoreboardScreen } from '../screens/ScoreboardScreen';
 import { HistoryScreen } from '../screens/HistoryScreen';
+import { MatchDetailScreen } from '../screens/MatchDetailScreen';
 import { LeaderboardScreen } from '../screens/LeaderboardScreen';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { useAuthStore } from '../store/authStore';
@@ -67,30 +68,9 @@ function RootNavigator() {
             )}
           </Stack.Screen>
           <Stack.Screen name="Scoreboard" component={ScoreboardScreen} />
-          <Stack.Screen
-            name="History"
-            component={HistoryScreen}
-            options={{
-              headerShown: true,
-              title: 'History',
-              headerTintColor: colors.accentBright,
-              headerTransparent: true,
-              headerStyle: { backgroundColor: 'transparent' },
-              headerTitleStyle: { fontFamily: fonts.display, color: colors.cream },
-            }}
-          />
-          <Stack.Screen
-            name="Leaderboard"
-            component={LeaderboardScreen}
-            options={{
-              headerShown: true,
-              title: 'Leaderboard',
-              headerTintColor: colors.accentBright,
-              headerTransparent: true,
-              headerStyle: { backgroundColor: 'transparent' },
-              headerTitleStyle: { fontFamily: fonts.display, color: colors.cream },
-            }}
-          />
+          <Stack.Screen name="History" component={HistoryScreen} />
+          <Stack.Screen name="MatchDetail" component={MatchDetailScreen} />
+          <Stack.Screen name="Leaderboard" component={LeaderboardScreen} />
         </>
       )}
     </Stack.Navigator>

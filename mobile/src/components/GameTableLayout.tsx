@@ -21,6 +21,8 @@ interface Props {
   showRoundWon?: boolean;
   phase?: string;
   chatBubbles?: Record<string, string>;
+  /** avatars = seats only; bubbles = chat overlay only; full = both (default) */
+  mode?: 'full' | 'avatars' | 'bubbles';
 }
 
 /**
@@ -37,6 +39,7 @@ export function GameTableLayout({
   showRoundWon,
   phase,
   chatBubbles,
+  mode = 'full',
 }: Props) {
   const myPlayer = players.find((p) => p.userId === myUserId);
   const mySeat = myPlayer?.seatIndex ?? 0;
@@ -59,12 +62,20 @@ export function GameTableLayout({
 
   const showBidding = phase === 'bidding';
   const showPlayStats = phase === 'playing' || phase === 'scoreboard';
+  const showAvatars = mode === 'full' || mode === 'avatars';
+  const showBubbles = mode === 'full' || mode === 'bubbles';
+
+  const renderBubble = (player: GamePlayer) => {
+    const bubble = chatBubbles?.[player.userId];
+    if (!showBubbles || !bubble) return null;
+    return <TableChatBubble message={bubble} />;
+  };
 
   const renderAvatar = (player: GamePlayer, isMe: boolean) => {
-    const bubble = chatBubbles?.[player.userId];
+    if (!showAvatars) return null;
     return (
       <View style={styles.seatStack}>
-        {bubble ? <TableChatBubble message={bubble} /> : null}
+        {mode === 'full' ? renderBubble(player) : null}
         <PlayerAvatar
           username={player.username}
           seatIndex={player.seatIndex}
@@ -85,15 +96,35 @@ export function GameTableLayout({
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      {opponentPositions.map(({ player, left, top }) => (
-        <View key={player.userId} style={[styles.seat, { left, top }]} pointerEvents="none">
-          {renderAvatar(player, false)}
-        </View>
-      ))}
+      {showAvatars &&
+        opponentPositions.map(({ player, left, top }) => (
+          <View key={player.userId} style={[styles.seat, { left, top }]} pointerEvents="none">
+            {renderAvatar(player, false)}
+          </View>
+        ))}
 
-      {myPlayer && (
+      {showAvatars && myPlayer && (
         <View style={styles.meSeat} pointerEvents="none">
           {renderAvatar(myPlayer, true)}
+        </View>
+      )}
+
+      {showBubbles && mode === 'bubbles' && (
+        <View style={styles.bubbleLayer} pointerEvents="none">
+          {opponentPositions.map(({ player, left, top }) => (
+            <View
+              key={`bubble-${player.userId}`}
+              style={[styles.seat, { left, top }]}
+              pointerEvents="none"
+            >
+              <View style={styles.bubbleAnchor}>{renderBubble(player)}</View>
+            </View>
+          ))}
+          {myPlayer && (
+            <View style={styles.meSeat} pointerEvents="none">
+              <View style={styles.bubbleAnchor}>{renderBubble(myPlayer)}</View>
+            </View>
+          )}
         </View>
       )}
     </View>
@@ -109,6 +140,17 @@ const styles = StyleSheet.create({
   seatStack: {
     alignItems: 'center',
     position: 'relative',
+    zIndex: 1,
+  },
+  bubbleLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 80,
+    elevation: 80,
+  },
+  bubbleAnchor: {
+    alignItems: 'center',
+    position: 'relative',
+    minHeight: 1,
   },
   meSeat: {
     position: 'absolute',

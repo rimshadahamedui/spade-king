@@ -68,8 +68,13 @@ export const useGameStore = create<GameState>((set) => ({
   setRoom: (room) =>
     set((s) => {
       const merged = room && s.room ? mergeRoom(s.room, room) : room;
+      const countdown =
+        merged?.phase === 'countdown' && merged.countdownRemaining != null
+          ? merged.countdownRemaining
+          : s.countdown;
       return {
         room: merged,
+        countdown,
         chat: merged?.chat ?? s.chat,
         snapshot:
           s.snapshot && merged?.suspendApprovals !== undefined

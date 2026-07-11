@@ -77,6 +77,21 @@ export class MatchRepository {
     return MatchHistoryModel.find({ userId }).sort({ playedAt: -1 }).limit(limit);
   }
 
+  async getMatchDetailForUser(matchId: string, userId: string) {
+    const participated = await MatchHistoryModel.findOne({ matchId, userId });
+    if (!participated) return null;
+
+    const match = await MatchModel.findById(matchId);
+    if (!match || match.status !== 'completed') return null;
+
+    return {
+      match,
+      userPlacement: participated.placement,
+      userWon: participated.won,
+      playedAt: participated.playedAt,
+    };
+  }
+
   async upsertStats(
     userId: string,
     update: {

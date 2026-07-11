@@ -122,4 +122,45 @@ export class StatsController {
       next(error);
     }
   };
+
+  matchDetail = async (req: AuthedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const detail = await matches.getMatchDetailForUser(String(req.params.matchId), req.user!.sub);
+      if (!detail) {
+        res.status(404).json({ success: false, message: 'Match not found' });
+        return;
+      }
+
+      const { match, userPlacement, userWon, playedAt } = detail;
+      res.json({
+        success: true,
+        data: {
+          matchId: match._id.toString(),
+          roomType: match.roomType,
+          totalRounds: match.rounds.length,
+          playedAt,
+          userPlacement,
+          userWon,
+          winners: match.winners.map((id) => id.toString()),
+          players: match.players.map((p) => ({
+            userId: p.userId.toString(),
+            username: p.username,
+            seatIndex: p.seatIndex,
+            totalScore: p.totalScore,
+          })),
+          rounds: match.rounds.map((r) => ({
+            roundNumber: r.roundNumber,
+            scores: r.scores.map((s) => ({
+              userId: s.userId.toString(),
+              bid: s.bid,
+              tricksWon: s.tricksWon,
+              points: s.points,
+            })),
+          })),
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
 }

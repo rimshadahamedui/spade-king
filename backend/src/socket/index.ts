@@ -473,6 +473,7 @@ function attachEngineBroadcast(io: Server, roomId: string): void {
     }
     if (event.type === 'finished') {
       io.to(roomId).emit(SOCKET_EVENTS.GAME_FINISHED, event);
+      broadcastGame(io, roomId);
     }
     if (event.type === 'dealt') {
       broadcastGame(io, roomId);

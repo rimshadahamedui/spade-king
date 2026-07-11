@@ -34,5 +34,6 @@ export const statsRouter = Router();
 statsRouter.use(authenticate);
 statsRouter.get('/me', statsController.me);
 statsRouter.get('/history', statsController.history);
+statsRouter.get('/match/:matchId', statsController.matchDetail);
 statsRouter.get('/leaderboard', statsController.leaderboard);
 statsRouter.get('/achievements', statsController.achievements);

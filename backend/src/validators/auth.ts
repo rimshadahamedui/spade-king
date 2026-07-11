@@ -1,18 +1,23 @@
 import { z } from 'zod';
 
+const emailField = z
+  .string()
+  .email()
+  .transform((value) => value.trim().toLowerCase());
+
 export const registerSchema = z.object({
-  email: z.string().email(),
+  email: emailField,
   password: z.string().min(8).max(128),
-  username: z.string().min(2).max(24),
+  username: z.string().trim().min(2).max(24),
 });
 
 export const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
+  email: emailField,
+  password: z.string().min(1).max(128),
 });
 
 export const guestSchema = z.object({
-  username: z.string().min(2).max(24).optional(),
+  username: z.string().trim().min(2).max(24).optional(),
 });
 
 export const googleSchema = z.object({

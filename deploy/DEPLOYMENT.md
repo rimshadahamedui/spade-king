@@ -31,7 +31,7 @@ nginx -t && systemctl reload nginx
 ## Redeploy after code changes
 From your PC (in repo root):
 ```bash
-cd backend && tar -czf ../rspade-backend.tgz --exclude=node_modules --exclude=dist .
+cd backend && tar -czf ../rspade-backend.tgz --exclude=node_modules --exclude=dist --exclude=.env .
 # upload rspade-backend.tgz + run remote-setup.sh on server
 ```
 

@@ -4,10 +4,13 @@ import type { Room } from '../models/types';
 export function mergeRoom(prev: Room | null, next: Room): Room {
   if (!prev || prev.id !== next.id) return next;
 
+  const players =
+    Array.isArray(next.players) ? next.players : prev.players;
+
   return {
     ...prev,
     ...next,
-    players: next.players?.length ? next.players : prev.players,
+    players,
     startApprovals:
       next.startApprovals !== undefined ? next.startApprovals : (prev.startApprovals ?? []),
     suspendApprovals:

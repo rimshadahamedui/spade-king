@@ -20,6 +20,7 @@ import { StartTableOverlay } from '../components/StartTableOverlay';
 import { ScreenBackdrop } from '../components/ScreenBackdrop';
 import { emitAck, ensureSocketConnected, SOCKET_EVENTS } from '../services/socket';
 import { formatApiError } from '../utils/network';
+import { clearRoomSyncGuards } from '../utils/roomSyncGuards';
 import { useAuthStore } from '../store/authStore';
 import { useGameStore } from '../store/gameStore';
 import type { RootStackParamList } from '../navigation/types';
@@ -53,8 +54,14 @@ export function RoomScreen() {
     room.phase === 'waiting' &&
     isFull &&
     countdown === null &&
-    !hasConfirmedStart &&
-    socketConnected;
+    !hasConfirmedStart;
+
+  const countdownValue =
+    countdown ?? (room?.phase === 'countdown' ? (room.countdownRemaining ?? null) : null);
+  const inCountdown =
+    !!room &&
+    (room.phase === 'countdown' ||
+      (countdownValue !== null && countdownValue !== undefined && countdownValue >= 0));
 
   const inGame =
     !!room &&
@@ -102,13 +109,13 @@ export function RoomScreen() {
     );
   }
 
-  if (countdown !== null && countdown >= 0 && room.phase === 'countdown') {
-    const dealingNow = countdown === 0;
+  if (inCountdown && countdownValue != null && countdownValue >= 0) {
+    const dealingNow = countdownValue === 0;
     return (
       <ScreenBackdrop>
         <SafeAreaView style={[styles.safe, styles.center, pad]} edges={[]}>
           <Text style={styles.kicker}>{dealingNow ? 'Dealing' : 'Dealing in'}</Text>
-          <Text style={styles.countdown}>{dealingNow ? '…' : countdown}</Text>
+          <Text style={styles.countdown}>{dealingNow ? '…' : countdownValue}</Text>
           {!dealingNow && <Text style={styles.sub}>Hold your nerve</Text>}
         </SafeAreaView>
       </ScreenBackdrop>
@@ -130,6 +137,7 @@ export function RoomScreen() {
     try {
       setBusy(true);
       await emitAck(SOCKET_EVENTS.LEAVE_ROOM, {});
+      clearRoomSyncGuards();
       useGameStore.getState().reset();
       navigation.navigate('RoomList', { roomType: room.roomType });
     } catch (e) {
@@ -235,9 +243,9 @@ export function RoomScreen() {
                   <Text style={styles.startBarWait}>Waiting…</Text>
                 ) : (
                   <Button
-                    title="Start"
+                    title={socketConnected ? 'Start' : 'Connecting…'}
                     onPress={() => void confirmStart()}
-                    disabled={busy}
+                    disabled={busy || !socketConnected}
                     compact
                     style={styles.startBarBtn}
                   />
@@ -305,7 +313,7 @@ export function RoomScreen() {
               visible={showStartOverlay}
               startCount={startCount}
               maxPlayers={room.maxPlayers}
-              busy={busy}
+              busy={busy || !socketConnected}
               onConfirm={() => void confirmStart()}
             />
           </View>
@@ -401,10 +409,10 @@ const styles = StyleSheet.create({
   playersPanel: {
     flex: 1,
     minWidth: 0,
+    minHeight: 180,
     borderRadius: radii.md,
     ...surfaces.panel,
     padding: spacing.sm,
-    minHeight: 0,
   },
   chatPanel: {
     width: 220,

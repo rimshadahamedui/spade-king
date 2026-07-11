@@ -23,6 +23,7 @@ import { ScreenBackdrop } from '../components/ScreenBackdrop';
 import { TableCenterMessage } from '../components/TableCenterMessage';
 import { TableFeltBackground } from '../components/TableFeltBackground';
 import { TrickPile } from '../components/TrickPile';
+import { flushTrickDeferredSnapshot } from '../hooks/useSocketBindings';
 import { emitAck, SOCKET_EVENTS } from '../services/socket';
 import { useAuthStore } from '../store/authStore';
 import { useGameStore } from '../store/gameStore';
@@ -133,10 +134,33 @@ export function GameScreen() {
 
   useEffect(() => {
     if (snapshot?.phase !== 'finished') return;
-    const task = InteractionManager.runAfterInteractions(() => {
-      navigation.navigate('Scoreboard');
-    });
-    return () => task.cancel();
+
+    let cancelled = false;
+    let pollTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const navigateWhenReady = () => {
+      if (cancelled) return;
+      const { heldTrick, trickCollect, pendingSnapshot } = useGameStore.getState();
+      if (heldTrick || trickCollect) {
+        pollTimer = setTimeout(navigateWhenReady, 250);
+        return;
+      }
+      if (pendingSnapshot?.phase === 'finished') {
+        useGameStore.getState().setSnapshot(pendingSnapshot);
+        useGameStore.getState().setPendingSnapshot(null);
+      }
+      InteractionManager.runAfterInteractions(() => {
+        if (!cancelled) navigation.navigate('Scoreboard');
+      });
+    };
+
+    const delay = setTimeout(navigateWhenReady, 600);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(delay);
+      if (pollTimer) clearTimeout(pollTimer);
+    };
   }, [snapshot?.phase, navigation]);
 
   useEffect(() => {
@@ -282,7 +306,9 @@ export function GameScreen() {
   };
 
   const phaseLabel = snapshot.phase.replace(/_/g, ' ');
+  const isFinalRound = snapshot.round >= snapshot.totalRounds;
   const showScoreboard = snapshot.phase === 'scoreboard';
+  const showFinalScoreboard = showScoreboard && isFinalRound;
   const showPlaying = snapshot.phase === 'playing';
   const showHand =
     ['bidding', 'playing', 'reshuffle_check'].includes(snapshot.phase) && !hideHand;
@@ -362,7 +388,7 @@ export function GameScreen() {
                         roundScores={snapshot.scores}
                         showRoundWon={showScoreboard}
                         phase={snapshot.phase}
-                        chatBubbles={tableChatBubbles}
+                        mode="avatars"
                       />
                     )}
 
@@ -375,10 +401,31 @@ export function GameScreen() {
                           bounds={tableBounds}
                           players={snapshot.players}
                           trickCollect={trickCollect}
-                          onCollectDone={() => setTrickCollect(null)}
+                          onCollectDone={() => {
+                            setTrickCollect(null);
+                            flushTrickDeferredSnapshot();
+                          }}
                         />
                       )}
                     </View>
+
+                    {tableBounds.width > 0 && (
+                      <View style={styles.chatBubbleLayer} pointerEvents="none">
+                        <GameTableLayout
+                          bounds={tableBounds}
+                          players={displayPlayers}
+                          myUserId={user?.id ?? ''}
+                          currentTurnSeatIndex={snapshot.currentTurnSeatIndex}
+                          currentBidderSeatIndex={snapshot.currentBidderSeatIndex}
+                          shufflerSeatIndex={snapshot.shufflerSeatIndex}
+                          roundScores={snapshot.scores}
+                          showRoundWon={showScoreboard}
+                          phase={snapshot.phase}
+                          chatBubbles={tableChatBubbles}
+                          mode="bubbles"
+                        />
+                      </View>
+                    )}
 
                     {showTableOverlay && <TableCenterMessage text={tableOverlay!} />}
                   </View>
@@ -464,20 +511,28 @@ export function GameScreen() {
                 keyboardShouldPersistTaps="handled"
               >
                 <View style={styles.scoreOverlay}>
-                  <Text style={styles.scoreTitle}>Round {snapshot.round} scores</Text>
+                  <Text style={styles.scoreTitle}>
+                    {showFinalScoreboard
+                      ? `Final Round · Round ${snapshot.round}`
+                      : `Round ${snapshot.round} scores`}
+                  </Text>
                   <ScoreGrid
                     snapshot={snapshot}
                     size="large"
                     highlightRound={snapshot.round}
                   />
                   <Text style={styles.approvalMeta}>
-                    Next round in {scoreCountdown}s · {approvalCount}/{playerCount} ready
+                    {showFinalScoreboard
+                      ? `Match results in ${scoreCountdown}s`
+                      : `Next round in ${scoreCountdown}s · ${approvalCount}/${playerCount} ready`}
                   </Text>
-                  <Button
-                    title="Next Round"
-                    disabled={hasApproved}
-                    onPress={approveRound}
-                  />
+                  {!showFinalScoreboard && (
+                    <Button
+                      title="Next Round"
+                      disabled={hasApproved}
+                      onPress={approveRound}
+                    />
+                  )}
                 </View>
               </ScrollView>
             </View>
@@ -615,6 +670,14 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
+    pointerEvents: 'none',
+    zIndex: 10,
+    elevation: 10,
+  },
+  chatBubbleLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 60,
+    elevation: 60,
     pointerEvents: 'none',
   },
   muted: {

@@ -1,17 +1,26 @@
 import React from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQuery } from '@tanstack/react-query';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ScreenBackdrop } from '../components/ScreenBackdrop';
+import { ScreenTopBar } from '../components/ScreenTopBar';
 import { statsApi } from '../services/api';
+import type { RootStackParamList } from '../navigation/types';
 import { colors, fonts, radii, spacing, surfaces } from '../theme';
 
 export function HistoryScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const insets = useSafeAreaInsets();
+
   const q = useQuery({
     queryKey: ['history'],
     queryFn: async () => {
       const res = await statsApi.history();
       return res.data.data as Array<{
         _id: string;
+        matchId: string;
         roomType: number;
         finalScore: number;
         placement: number;
@@ -21,10 +30,17 @@ export function HistoryScreen() {
     },
   });
 
+  const pad = {
+    paddingTop: Math.max(insets.top, 8),
+    paddingBottom: Math.max(insets.bottom, 8),
+    paddingLeft: Math.max(insets.left, 12),
+    paddingRight: Math.max(insets.right, 12),
+  };
+
   if (q.isLoading) {
     return (
       <ScreenBackdrop>
-        <View style={[styles.root, styles.center]}>
+        <View style={[styles.center, pad]}>
           <ActivityIndicator color={colors.accent} />
         </View>
       </ScreenBackdrop>
@@ -33,53 +49,53 @@ export function HistoryScreen() {
 
   return (
     <ScreenBackdrop>
-      <FlatList
-        style={styles.flex}
-        contentContainerStyle={styles.content}
-        data={q.data ?? []}
-        keyExtractor={(item) => item._id}
-        ListHeaderComponent={
-          <View style={{ marginBottom: spacing.lg }}>
-            <Text style={styles.kicker}>Archive</Text>
-            <Text style={styles.title}>Match History</Text>
-          </View>
-        }
-        ListEmptyComponent={<Text style={styles.empty}>No tables played yet.</Text>}
-        renderItem={({ item }) => (
-          <View style={styles.row}>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{item.roomType}P</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.main}>Place #{item.placement}</Text>
-              <Text style={styles.meta}>{new Date(item.playedAt).toLocaleString()}</Text>
-            </View>
-            <Text style={[styles.score, item.won && styles.won]}>{item.finalScore}</Text>
-          </View>
-        )}
-      />
+      <SafeAreaView style={styles.safe} edges={[]}>
+        <View style={[styles.root, pad]}>
+          <ScreenTopBar
+            title="Match History"
+            kicker="Archive"
+            onBack={() => navigation.navigate('Lobby')}
+          />
+
+          <FlatList
+            style={styles.flex}
+            contentContainerStyle={styles.content}
+            data={q.data ?? []}
+            keyExtractor={(item) => item._id}
+            ListEmptyComponent={<Text style={styles.empty}>No tables played yet.</Text>}
+            renderItem={({ item }) => (
+              <Pressable
+                onPress={() =>
+                  navigation.navigate('MatchDetail', { matchId: String(item.matchId) })
+                }
+                style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+              >
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{item.roomType}P</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.main}>
+                    Place #{item.placement}
+                    {item.won ? ' · Won' : ''}
+                  </Text>
+                  <Text style={styles.meta}>{new Date(item.playedAt).toLocaleString()}</Text>
+                </View>
+                <Text style={[styles.score, item.won && styles.won]}>{item.finalScore}</Text>
+              </Pressable>
+            )}
+          />
+        </View>
+      </SafeAreaView>
     </ScreenBackdrop>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
+  safe: { flex: 1 },
   root: { flex: 1 },
-  center: { justifyContent: 'center', alignItems: 'center' },
-  content: { padding: spacing.lg, paddingTop: 24, paddingBottom: 40 },
-  kicker: {
-    color: colors.accent,
-    fontFamily: fonts.bodyMedium,
-    letterSpacing: 2,
-    fontSize: 11,
-    textTransform: 'uppercase',
-  },
-  title: {
-    color: colors.cream,
-    fontSize: 32,
-    fontFamily: fonts.display,
-    marginTop: 4,
-  },
+  flex: { flex: 1 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  content: { paddingBottom: 40 },
   empty: { color: colors.textMuted, fontFamily: fonts.body },
   row: {
     flexDirection: 'row',
@@ -89,6 +105,10 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     padding: spacing.md,
     marginBottom: 10,
+  },
+  rowPressed: {
+    opacity: 0.85,
+    borderColor: colors.borderStrong,
   },
   badge: {
     width: 44,

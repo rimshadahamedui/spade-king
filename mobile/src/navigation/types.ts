@@ -6,5 +6,6 @@ export type RootStackParamList = {
   Game: undefined;
   Scoreboard: undefined;
   History: undefined;
+  MatchDetail: { matchId: string };
   Leaderboard: undefined;
 };

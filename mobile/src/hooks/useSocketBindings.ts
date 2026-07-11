@@ -13,6 +13,13 @@ import { queryClient } from '../queryClient';
 import { navigateToActiveRoom, navigateToLobby } from '../navigation/navigationRef';
 import type { PrivateGameSnapshot, Room } from '../models/types';
 import { alertMessage } from '../utils/confirm';
+import {
+  armRoomClosedGuards,
+  clearRoomSyncGuards,
+  shouldIgnoreRoomUpdate,
+  shouldSuppressGameSnapshots,
+  tryClearSuppressForLobbyPhase,
+} from '../utils/roomSyncGuards';
 
 function isInGamePhase(phase: string | undefined): boolean {
   return !!phase && phase !== 'waiting' && phase !== 'countdown' && phase !== 'finished';
@@ -22,6 +29,7 @@ const REASON_MS = 2000;
 const RESHUFFLE_LABEL_MS = 800;
 const SHUFFLE_MS = 2000;
 const SCOREBOARD_DISMISS_MS = 500;
+const TRICK_HOLD_MS = 1300;
 
 let trickHoldTimer: ReturnType<typeof setTimeout> | null = null;
 let overlayTimers: ReturnType<typeof setTimeout>[] = [];
@@ -29,8 +37,6 @@ let reshuffleSequenceActive = false;
 let lastReshuffleEpoch = 0;
 let deferRoundShuffle = false;
 let roundShuffleInProgress = false;
-let suppressGameSnapshots = false;
-let ignoreRoomId: string | null = null;
 
 function clearOverlayTimers() {
   overlayTimers.forEach(clearTimeout);
@@ -47,21 +53,40 @@ function isOverlayActive() {
   return reshuffleSequenceActive || s.hideHand || s.tableOverlay !== null;
 }
 
+function trickAnimationActive() {
+  const s = useGameStore.getState();
+  return !!s.heldTrick || !!s.trickCollect;
+}
+
+export function flushTrickDeferredSnapshot() {
+  const { pendingSnapshot, setPendingSnapshot, setSnapshot } = useGameStore.getState();
+  if (trickAnimationActive()) return;
+  if (!pendingSnapshot) return;
+  if (pendingSnapshot.phase === 'scoreboard' || pendingSnapshot.phase === 'finished') {
+    setSnapshot(pendingSnapshot);
+    setPendingSnapshot(null);
+  }
+}
+
 function queueOrApplySnapshot(snap: PrivateGameSnapshot) {
   const prevPhase = useGameStore.getState().snapshot?.phase;
   const leavingScoreboard = prevPhase === 'scoreboard' && snap.phase !== 'scoreboard';
 
-    if (snap.phase === 'scoreboard') {
-      if (trickHoldTimer) {
-        clearTimeout(trickHoldTimer);
-        trickHoldTimer = null;
-      }
-      useGameStore.getState().setHeldTrick(null);
-      useGameStore.getState().setTrickCollect(null);
-      if (prevPhase !== 'scoreboard') {
-        deferRoundShuffle = false;
-      }
+  if (snap.phase === 'scoreboard' || snap.phase === 'finished') {
+    if (trickAnimationActive()) {
+      useGameStore.getState().setPendingSnapshot(snap);
+      return;
     }
+    if (trickHoldTimer) {
+      clearTimeout(trickHoldTimer);
+      trickHoldTimer = null;
+    }
+    useGameStore.getState().setHeldTrick(null);
+    useGameStore.getState().setTrickCollect(null);
+    if (prevPhase !== 'scoreboard') {
+      deferRoundShuffle = false;
+    }
+  }
 
   if (leavingScoreboard || deferRoundShuffle) {
     beginRoundShuffle(snap);
@@ -179,14 +204,12 @@ export function useSocketBindings() {
       if (!socket) return () => undefined;
 
       const onRoom = (data: Room & { snapshot?: PrivateGameSnapshot }) => {
-        if (ignoreRoomId && data.id === ignoreRoomId) return;
+        if (shouldIgnoreRoomUpdate(data.id)) return;
 
-        if (suppressGameSnapshots) {
+        if (shouldSuppressGameSnapshots()) {
           if (!data.id) return;
-          if (data.phase === 'waiting' || data.phase === 'countdown') {
-            suppressGameSnapshots = false;
-            ignoreRoomId = null;
-          } else {
+          tryClearSuppressForLobbyPhase(data.phase);
+          if (shouldSuppressGameSnapshots()) {
             return;
           }
         }
@@ -247,9 +270,9 @@ export function useSocketBindings() {
         lastReshuffleEpoch = 0;
         deferRoundShuffle = false;
         roundShuffleInProgress = false;
-        suppressGameSnapshots = true;
-        ignoreRoomId = payload?.roomId ?? useGameStore.getState().room?.id ?? null;
+        armRoomClosedGuards(payload?.roomId ?? useGameStore.getState().room?.id ?? null);
         const suspended = payload?.reason === 'suspended';
+        const closedRoomId = payload?.roomId ?? null;
         useGameStore.getState().reset();
         navigateToLobby();
         if (suspended) {
@@ -259,7 +282,7 @@ export function useSocketBindings() {
         }
         void queryClient.invalidateQueries({ queryKey: ['publicRooms'] });
         setTimeout(() => {
-          if (ignoreRoomId === payload?.roomId) ignoreRoomId = null;
+          if (closedRoomId) clearRoomSyncGuards();
         }, 4000);
       };
 
@@ -360,11 +383,11 @@ export function useSocketBindings() {
             visibleCardIds,
           });
           trickHoldTimer = null;
-        }, 800);
+        }, TRICK_HOLD_MS);
       };
 
       const onDeal = (snap: PrivateGameSnapshot) => {
-        if (suppressGameSnapshots) return;
+        if (shouldSuppressGameSnapshots()) return;
         queueOrApplySnapshot(snap);
       };
 
@@ -383,6 +406,14 @@ export function useSocketBindings() {
       socket.on(SOCKET_EVENTS.COUNTDOWN, (p: { remaining: number }) => {
         setError(null);
         setCountdown(p.remaining);
+        const current = useGameStore.getState().room;
+        if (current) {
+          setRoom({
+            ...current,
+            phase: 'countdown',
+            countdownRemaining: p.remaining,
+          });
+        }
       });
       socket.on(SOCKET_EVENTS.CHAT_MESSAGE, onChat);
       socket.on(SOCKET_EVENTS.CHAT_HISTORY, onChatHistory);
@@ -438,8 +469,7 @@ export function useSocketBindings() {
         reshuffleSequenceActive = false;
         deferRoundShuffle = false;
         roundShuffleInProgress = false;
-        suppressGameSnapshots = false;
-        ignoreRoomId = null;
+        clearRoomSyncGuards();
       };
     };
 

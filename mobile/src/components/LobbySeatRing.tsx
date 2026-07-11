@@ -132,7 +132,7 @@ export function LobbySeatRing({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    minHeight: 0,
+    minHeight: 160,
     position: 'relative',
   },
   centerLabel: {

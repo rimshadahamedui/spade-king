@@ -29,11 +29,16 @@
     "infoPlist": {
       "UIStatusBarStyle": "UIStatusBarStyleLightContent",
       "UIViewControllerBasedStatusBarAppearance": false,
+      "ITSAppUsesNonExemptEncryption": false,
       "UISupportedInterfaceOrientations": [
+        "UIInterfaceOrientationLandscapeLeft",
+        "UIInterfaceOrientationLandscapeRight",
         "UIInterfaceOrientationLandscapeLeft",
         "UIInterfaceOrientationLandscapeRight"
       ],
       "UISupportedInterfaceOrientations~ipad": [
+        "UIInterfaceOrientationLandscapeLeft",
+        "UIInterfaceOrientationLandscapeRight",
         "UIInterfaceOrientationLandscapeLeft",
         "UIInterfaceOrientationLandscapeRight"
       ]
@@ -60,7 +65,9 @@
     }
   },
   "web": {
-    "backgroundColor": "#000000"
+    "backgroundColor": "#000000",
+    "output": "single",
+    "bundler": "metro"
   },
   "plugins": [
     "expo-font",
@@ -90,5 +97,11 @@
       "projectId": "86193910-7fe0-4c75-b67c-b17469d0a576"
     }
   },
-  "owner": "spadekings-team"
+  "owner": "spadekings-team",
+  "runtimeVersion": {
+    "policy": "appVersion"
+  },
+  "updates": {
+    "url": "https://u.expo.dev/86193910-7fe0-4c75-b67c-b17469d0a576"
+  }
 }

@@ -522,19 +522,38 @@ export class RoomService {
       const players = live.engine.getPlayers();
       const ranked = [...players].sort((a, b) => b.totalScore - a.totalScore);
 
-      await this.matchesRepo.complete(
-        live.matchId,
-        winners,
-        players.map((p) => ({
+      const publicSnap = live.engine.getPublicSnapshot();
+      const rounds = (publicSnap.scoreHistory ?? []).map((entry) => ({
+        roundNumber: entry.round,
+        scores: entry.scores.map((s) => ({
+          userId: s.userId as unknown as Types.ObjectId,
+          bid: s.bid,
+          tricksWon: s.tricksWon,
+          points: s.points,
+        })),
+      }));
+
+      const matchPlayers = players.map((p) => {
+        const bids: number[] = [];
+        const tricksWon: number[] = [];
+        for (const entry of publicSnap.scoreHistory ?? []) {
+          const row = entry.scores.find((s) => s.userId === p.userId);
+          if (row) {
+            bids.push(row.bid);
+            tricksWon.push(row.tricksWon);
+          }
+        }
+        return {
           userId: p.userId as unknown as Types.ObjectId,
           username: p.username,
           seatIndex: p.seatIndex,
           totalScore: p.totalScore,
-          bids: p.bid !== null ? [p.bid] : [],
-          tricksWon: [p.tricksWon],
-        })),
-        [],
-      );
+          bids,
+          tricksWon,
+        };
+      });
+
+      await this.matchesRepo.complete(live.matchId, winners, matchPlayers, rounds);
 
       const history = ranked.map((p, idx) => ({
         matchId: live.matchId!,

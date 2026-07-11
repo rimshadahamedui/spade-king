@@ -6,7 +6,8 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "channel": "development"
     },
     "preview": {
       "distribution": "internal",
@@ -16,13 +17,26 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://spade.rimozo.com",
         "EXPO_PUBLIC_SOCKET_URL": "https://spade.rimozo.com"
-      }
+      },
+      "channel": "preview"
+    },
+    "preview-simulator": {
+      "distribution": "internal",
+      "ios": {
+        "simulator": true
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://spade.rimozo.com",
+        "EXPO_PUBLIC_SOCKET_URL": "https://spade.rimozo.com"
+      },
+      "channel": "preview-simulator"
     },
     "production": {
       "env": {
         "EXPO_PUBLIC_API_URL": "https://spade.rimozo.com",
         "EXPO_PUBLIC_SOCKET_URL": "https://spade.rimozo.com"
-      }
+      },
+      "channel": "production"
     }
   },
   "submit": {

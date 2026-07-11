@@ -535,11 +535,6 @@ export class GameEngine {
     this.setPhase('scoreboard');
     this.emit({ type: 'roundScore', scores, round: this.round });
 
-    if (this.round >= this.totalRounds) {
-      this.finishGame();
-      return;
-    }
-
     this.shufflerSeatIndex = (this.shufflerSeatIndex + 1) % this.players.length;
     this.lastTrickWinner = null;
   }
@@ -559,6 +554,12 @@ export class GameEngine {
     if (this.phase !== 'scoreboard') throw new Error('Not in scoreboard phase');
     this.roundApprovals.clear();
     this.scoreboardEndsAt = null;
+
+    if (this.round >= this.totalRounds) {
+      this.finishGame();
+      return;
+    }
+
     this.emit({ type: 'nextRound', round: this.round + 1 });
     this.beginRound();
   }

@@ -23,6 +23,7 @@ import { useAuthStore } from '../store/authStore';
 import { useGameStore } from '../store/gameStore';
 import type { RootStackParamList } from '../navigation/types';
 import { colors, fonts, radii, spacing, surfaces } from '../theme';
+import { clearRoomSyncGuards } from '../utils/roomSyncGuards';
 
 const CARD_WIDTH = 252;
 const CARD_HEIGHT = 104;
@@ -131,6 +132,7 @@ export function RoomListScreen() {
         visibility: 'public',
       })) as { success: boolean; data: Parameters<typeof setRoom>[0] };
       if (!res.success) throw new Error('Failed to create room');
+      clearRoomSyncGuards();
       setRoom(res.data);
       navigation.navigate('Room');
     } catch (e) {
@@ -155,7 +157,11 @@ export function RoomListScreen() {
         message?: string;
       };
       if (!res.success) throw new Error(res.message ?? 'Join failed');
+      clearRoomSyncGuards();
       setRoom(res.data);
+      if (res.data.phase === 'countdown' && res.data.countdownRemaining != null) {
+        useGameStore.getState().setCountdown(res.data.countdownRemaining);
+      }
       if (res.data.snapshot) setSnapshot(res.data.snapshot);
       const inGame =
         res.data.phase !== 'waiting' &&

@@ -22,13 +22,14 @@ export class AuthService {
   constructor(private readonly users = new UserRepository()) {}
 
   async registerEmail(email: string, password: string, username: string): Promise<AuthTokens> {
-    const existing = await this.users.findByEmail(email);
+    const normalizedEmail = email.trim().toLowerCase();
+    const existing = await this.users.findByEmail(normalizedEmail);
     if (existing) throw new Error('Email already registered');
 
     const passwordHash = await bcrypt.hash(password, 12);
     const user = await this.users.create({
-      email,
-      username,
+      email: normalizedEmail,
+      username: username.trim(),
       passwordHash,
       provider: 'email',
       isGuest: false,
@@ -37,7 +38,8 @@ export class AuthService {
   }
 
   async loginEmail(email: string, password: string): Promise<AuthTokens> {
-    const user = await this.users.findByEmail(email);
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await this.users.findByEmail(normalizedEmail);
     if (!user || !user.passwordHash) throw new Error('Invalid credentials');
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) throw new Error('Invalid credentials');

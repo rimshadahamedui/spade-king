@@ -48,7 +48,8 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     alignItems: 'center',
     maxWidth: 120,
-    zIndex: 50,
+    zIndex: 100,
+    elevation: 100,
   },
   bubble: {
     backgroundColor: 'rgba(2, 4, 8, 0.94)',
@@ -61,7 +62,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.35,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
-    elevation: 6,
+    elevation: 100,
   },
   text: {
     color: colors.cream,
