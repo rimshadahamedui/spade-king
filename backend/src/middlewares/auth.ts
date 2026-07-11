@@ -41,6 +41,10 @@ export function validateBody(schema: ZodSchema) {
 
 export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction): void {
   const message = err instanceof Error ? err.message : 'Internal server error';
-  const status = message.toLowerCase().includes('unauthorized') ? 401 : 400;
+  const status = /forbidden/i.test(message)
+    ? 403
+    : message.toLowerCase().includes('unauthorized')
+      ? 401
+      : 400;
   res.status(status).json({ success: false, message });
 }

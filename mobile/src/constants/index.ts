@@ -43,3 +43,5 @@ export const SOCKET_EVENTS = {
 } as const;
 
 export type RoomType = 3 | 4 | 5;
+
+export const ADMIN_EMAIL = 'rimshad.rimo@gmail.com';

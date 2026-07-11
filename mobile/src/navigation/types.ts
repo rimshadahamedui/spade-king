@@ -8,4 +8,5 @@ export type RootStackParamList = {
   History: undefined;
   MatchDetail: { matchId: string };
   Leaderboard: undefined;
+  PlayerRecords: { userId: string; username: string };
 };

@@ -24,16 +24,26 @@ const GEOMETRY = {
   meCenterAboveBottom: 32,
 } as const;
 
+function isPortrait(bounds: Bounds): boolean {
+  return bounds.height > bounds.width * 1.05;
+}
+
 /**
- * Arc layout scaled to table size — uses upper felt area without clipping the top seat.
+ * Arc layout scaled to table size — portrait uses a taller upper arc.
  */
 function layoutFor(playerCount: number, bounds: Bounds): Layout {
   const { width, height } = bounds;
   const halfH = SEAT.height / 2;
   const topCenterMin = (SEAT.padding + halfH) / height;
+  const portrait = isPortrait(bounds);
 
   if (playerCount === 4) {
-    // Wide arc: top opponent high, sides on upper-left / upper-right.
+    if (portrait) {
+      const cy = 0.28;
+      const ry = Math.min(0.22, Math.max(0.16, cy - topCenterMin - 0.01));
+      const rx = Math.min(0.44, Math.max(0.38, 0.42));
+      return { cx: 0.5, cy, rx, ry };
+    }
     const cy = 0.34;
     const ry = Math.min(0.28, Math.max(0.22, cy - topCenterMin - 0.006));
     const rx = Math.min(0.4, Math.max(0.35, 0.38 * (width / Math.max(height, 1))));
@@ -41,13 +51,25 @@ function layoutFor(playerCount: number, bounds: Bounds): Layout {
   }
 
   if (playerCount === 5) {
+    if (portrait) {
+      const cy = 0.3;
+      const ry = Math.min(0.2, Math.max(0.15, cy - topCenterMin - 0.01));
+      const rx = Math.min(0.46, Math.max(0.4, 0.44));
+      return { cx: 0.5, cy, rx, ry };
+    }
     const cy = 0.36;
     const ry = Math.min(0.26, Math.max(0.2, cy - topCenterMin - 0.008));
     const rx = Math.min(0.42, Math.max(0.36, 0.4 * (width / Math.max(height, 1))));
     return { cx: 0.5, cy, rx, ry };
   }
 
-  // 3 players — two opponents left / right on the upper arc.
+  if (portrait) {
+    const cy = 0.32;
+    const ry = Math.min(0.18, Math.max(0.14, cy - topCenterMin));
+    const rx = Math.min(0.4, Math.max(0.34, 0.38));
+    return { cx: 0.5, cy, rx, ry };
+  }
+
   const cy = 0.38;
   const ry = Math.min(0.24, Math.max(0.18, cy - topCenterMin));
   const rx = Math.min(0.36, Math.max(0.3, 0.34 * (width / Math.max(height, 1))));
@@ -65,12 +87,16 @@ function seatAngle(seatIndex: number, mySeat: number, playerCount: number): numb
   return angle;
 }
 
+function bottomReserve(bounds: Bounds): number {
+  return isPortrait(bounds) ? 72 : SEAT.bottomReserve;
+}
+
 function clampSeatPosition(
   bounds: Bounds,
   left: number,
   top: number,
 ): { left: number; top: number } {
-  const maxTop = bounds.height - SEAT.height - SEAT.bottomReserve;
+  const maxTop = bounds.height - SEAT.height - bottomReserve(bounds);
   return {
     left: Math.max(SEAT.padding, Math.min(left, bounds.width - SEAT.width - SEAT.padding)),
     top: Math.max(SEAT.padding, Math.min(top, maxTop)),
@@ -90,7 +116,9 @@ export function getSeatCenterOffset(
   const angle = seatAngle(seatIndex, mySeat, playerCount);
 
   if (angle === null) {
-    const meCenterY = height - GEOMETRY.meBottom - GEOMETRY.meCenterAboveBottom;
+    const meBottom = isPortrait(bounds) ? 8 : GEOMETRY.meBottom;
+    const meCenterAboveBottom = isPortrait(bounds) ? 28 : GEOMETRY.meCenterAboveBottom;
+    const meCenterY = height - meBottom - meCenterAboveBottom;
     return { x: 0, y: meCenterY - tableCy };
   }
 

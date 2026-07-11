@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   InteractionManager,
   LayoutChangeEvent,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -18,14 +20,18 @@ import { GameTableLayout } from '../components/GameTableLayout';
 import { HandFan } from '../components/HandFan';
 import { PresetChatPanel } from '../components/PresetChatPanel';
 import { ScoreTablePanel } from '../components/ScoreTablePanel';
-import { ScoreGrid } from '../components/ScoreGrid';
+import { ScoreRoundsList } from '../components/ScoreRoundsList';
 import { ScreenBackdrop } from '../components/ScreenBackdrop';
 import { TableCenterMessage } from '../components/TableCenterMessage';
 import { TableFeltBackground } from '../components/TableFeltBackground';
 import { TrickPile } from '../components/TrickPile';
 import { flushTrickDeferredSnapshot } from '../hooks/useSocketBindings';
+import { useIsPortrait } from '../hooks/useIsPortrait';
+import { ADMIN_EMAIL } from '../constants';
 import { emitAck, SOCKET_EVENTS } from '../services/socket';
+import { adminApi } from '../services/api';
 import { useAuthStore } from '../store/authStore';
+import { formatApiError } from '../utils/network';
 import { useGameStore } from '../store/gameStore';
 import type { RootStackParamList } from '../navigation/types';
 import type { Room } from '../models/types';
@@ -56,7 +62,12 @@ export function GameScreen() {
   const [presetChatBusy, setPresetChatBusy] = useState(false);
   const [suspendDialogOpen, setSuspendDialogOpen] = useState(false);
   const [suspendBusy, setSuspendBusy] = useState(false);
+  const [adminBusy, setAdminBusy] = useState(false);
   const insets = useSafeAreaInsets();
+  const isPortrait = useIsPortrait();
+  const { height: winH } = useWindowDimensions();
+  const handDockHeight = isPortrait ? Math.min(140, Math.max(100, winH * 0.16)) : 118;
+  const isAdmin = user?.email?.trim().toLowerCase() === ADMIN_EMAIL;
   const autoPlayRef = useRef<string | null>(null);
   const autoPlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const playInFlightRef = useRef(false);
@@ -248,6 +259,34 @@ export function GameScreen() {
     setSuspendDialogOpen(false);
   }, [suspendBusy]);
 
+  const purgeAllRooms = useCallback(() => {
+    Alert.alert(
+      'Clear all rooms?',
+      'Every active table will close and all players will return to the lobby.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear rooms',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              setAdminBusy(true);
+              try {
+                const res = await adminApi.purgeRooms();
+                const closed = res.data.data?.closed ?? 0;
+                Alert.alert('Rooms cleared', `${closed} room(s) closed.`);
+              } catch (e) {
+                Alert.alert('Failed', formatApiError(e));
+              } finally {
+                setAdminBusy(false);
+              }
+            })();
+          },
+        },
+      ],
+    );
+  }, []);
+
   const sendPresetChat = useCallback(async (message: string) => {
     if (presetChatBusy) return;
     setPresetChatBusy(true);
@@ -349,20 +388,38 @@ export function GameScreen() {
                 <View style={styles.phasePill}>
                   <Text style={styles.phase}>{phaseLabel}</Text>
                 </View>
-                <Pressable
-                  style={[styles.pauseBtn, hasSuspendApproved && styles.pauseBtnActive]}
-                  onPress={confirmSuspend}
-                  disabled={hasSuspendApproved}
-                  hitSlop={12}
-                  accessibilityLabel="End game"
-                  accessibilityRole="button"
-                >
-                  <Ionicons
-                    name="pause"
-                    size={11}
-                    color={hasSuspendApproved ? colors.accentBright : colors.cream}
-                  />
-                </Pressable>
+                <View style={styles.topActions}>
+                  {isAdmin ? (
+                    <Pressable
+                      style={[styles.adminBtn, adminBusy && styles.adminBtnBusy]}
+                      onPress={purgeAllRooms}
+                      disabled={adminBusy}
+                      hitSlop={12}
+                      accessibilityLabel="Clear all rooms"
+                      accessibilityRole="button"
+                    >
+                      <Ionicons
+                        name="trash-outline"
+                        size={11}
+                        color={colors.danger}
+                      />
+                    </Pressable>
+                  ) : null}
+                  <Pressable
+                    style={[styles.pauseBtn, hasSuspendApproved && styles.pauseBtnActive]}
+                    onPress={confirmSuspend}
+                    disabled={hasSuspendApproved}
+                    hitSlop={12}
+                    accessibilityLabel="End game"
+                    accessibilityRole="button"
+                  >
+                    <Ionicons
+                      name="pause"
+                      size={11}
+                      color={hasSuspendApproved ? colors.accentBright : colors.cream}
+                    />
+                  </Pressable>
+                </View>
               </View>
 
               <View style={styles.tableStage}>
@@ -471,7 +528,7 @@ export function GameScreen() {
             </View>
           </View>
 
-          <View style={styles.handDock}>
+          <View style={[styles.handDock, { height: handDockHeight }]}>
             {showHand && (
               <View style={styles.handArea} onLayout={onHandLayout}>
                 {handWidth > 0 && (
@@ -495,8 +552,9 @@ export function GameScreen() {
               snapshot={snapshot}
               open={scorePanelOpen && !showScoreboard}
               onToggle={() => setScorePanelOpen((v) => !v)}
-              bottomInset={Math.max(insets.bottom, spacing.sm) + spacing.sm}
+              bottomInset={handDockHeight + spacing.sm}
               leftInset={Math.max(insets.left, spacing.sm) + spacing.sm}
+              rightInset={Math.max(insets.right, spacing.sm) + spacing.sm}
             />
           </View>
 
@@ -510,16 +568,17 @@ export function GameScreen() {
                 bounces={false}
                 keyboardShouldPersistTaps="handled"
               >
-                <View style={styles.scoreOverlay}>
+                <View style={[styles.scoreOverlay, isPortrait && styles.scoreOverlayPortrait]}>
                   <Text style={styles.scoreTitle}>
                     {showFinalScoreboard
                       ? `Final Round · Round ${snapshot.round}`
                       : `Round ${snapshot.round} scores`}
                   </Text>
-                  <ScoreGrid
+                  <ScoreRoundsList
                     snapshot={snapshot}
-                    size="large"
+                    maxHeight={winH * 0.6}
                     highlightRound={snapshot.round}
+                    size="comfortable"
                   />
                   <Text style={styles.approvalMeta}>
                     {showFinalScoreboard
@@ -545,7 +604,7 @@ export function GameScreen() {
               styles.presetChatLayer,
               {
                 right: Math.max(insets.right, 10),
-                bottom: Math.max(insets.bottom, 8),
+                bottom: handDockHeight + Math.max(insets.bottom, spacing.sm),
               },
             ]}
             pointerEvents="box-none"
@@ -584,10 +643,28 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 'auto',
     backgroundColor: 'rgba(0,0,0,0.55)',
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  topActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginLeft: 'auto',
+  },
+  adminBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(120, 20, 20, 0.45)',
+    borderWidth: 1,
+    borderColor: 'rgba(232, 93, 93, 0.45)',
+  },
+  adminBtnBusy: {
+    opacity: 0.55,
   },
   pauseBtnActive: {
     borderColor: colors.accentBright,
@@ -688,7 +765,6 @@ const styles = StyleSheet.create({
     fontSize: 9,
   },
   handDock: {
-    height: 118,
     justifyContent: 'flex-end',
     paddingTop: 0,
     zIndex: 1,
@@ -742,6 +818,11 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.4,
     shadowRadius: 12,
+  },
+  scoreOverlayPortrait: {
+    maxWidth: '100%',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
   },
   scoreTitle: {
     color: colors.cream,

@@ -78,19 +78,57 @@ export class MatchRepository {
     return MatchHistoryModel.find({ userId }).sort({ playedAt: -1 }).limit(limit);
   }
 
-  async getMatchDetailForUser(matchId: string, userId: string) {
-    const participated = await MatchHistoryModel.findOne({ matchId, userId });
-    if (!participated) return null;
+  async getGlobalHistory(limit = 40) {
+    const matches = await MatchModel.find({ status: 'completed' })
+      .sort({ endedAt: -1 })
+      .limit(limit)
+      .lean();
 
+    return matches.map((m) => {
+      const winnerIds = new Set(m.winners.map((id) => id.toString()));
+      const winnerPlayers = m.players.filter((p) => winnerIds.has(p.userId.toString()));
+      const topScore =
+        m.players.length > 0 ? Math.max(...m.players.map((p) => p.totalScore)) : 0;
+
+      return {
+        matchId: m._id.toString(),
+        roomType: m.roomType,
+        playedAt: m.endedAt ?? m.startedAt,
+        playerCount: m.players.length,
+        winnerNames: winnerPlayers.map((p) => p.username).join(', ') || '—',
+        topScore,
+      };
+    });
+  }
+
+  async getPlayerMatchHistory(userId: string, limit = 40) {
+    return MatchHistoryModel.find({ userId }).sort({ playedAt: -1 }).limit(limit).lean();
+  }
+
+  async getMatchDetail(matchId: string, viewerUserId?: string) {
     const match = await MatchModel.findById(matchId);
     if (!match || match.status !== 'completed') return null;
 
+    let userPlacement: number | null = null;
+    let userWon: boolean | null = null;
+    if (viewerUserId) {
+      const participated = await MatchHistoryModel.findOne({ matchId, userId: viewerUserId }).lean();
+      if (participated) {
+        userPlacement = participated.placement;
+        userWon = participated.won;
+      }
+    }
+
     return {
       match,
-      userPlacement: participated.placement,
-      userWon: participated.won,
-      playedAt: participated.playedAt,
+      userPlacement,
+      userWon,
+      playedAt: match.endedAt ?? match.startedAt,
     };
+  }
+
+  async getMatchDetailForUser(matchId: string, userId: string) {
+    return this.getMatchDetail(matchId, userId);
   }
 
   async upsertStats(
@@ -179,11 +217,48 @@ export class MatchRepository {
     return UserAchievementModel.find({ userId }).sort({ unlockedAt: -1 });
   }
 
-  async getLeaderboard(limit = 50) {
-    return PlayerStatisticsModel.find()
+  async findUserName(userId: string): Promise<string | null> {
+    const user = await UserModel.findById(userId).select('username').lean();
+    return user?.username ?? null;
+  }
+
+  async getLeaderboard(limit = 50): Promise<
+    Array<{ userId: string; username: string; gamesWon: number }>
+  > {
+    const rows = await PlayerStatisticsModel.find({ gamesWon: { $gt: 0 } })
       .sort({ gamesWon: -1, winPercentage: -1 })
       .limit(limit)
       .populate('userId', 'username');
+
+    return rows.map((row) => {
+      const user = row.userId as unknown as { _id: { toString(): string }; username?: string };
+      return {
+        userId: user._id.toString(),
+        username: user.username ?? 'Player',
+        gamesWon: row.gamesWon,
+      };
+    });
+  }
+
+  async clearAllStats(): Promise<{
+    matchHistories: number;
+    playerStatistics: number;
+    matches: number;
+    achievements: number;
+  }> {
+    const [matchHistories, playerStatistics, matches, achievements] = await Promise.all([
+      MatchHistoryModel.deleteMany({}),
+      PlayerStatisticsModel.deleteMany({}),
+      MatchModel.deleteMany({}),
+      UserAchievementModel.deleteMany({}),
+    ]);
+
+    return {
+      matchHistories: matchHistories.deletedCount ?? 0,
+      playerStatistics: playerStatistics.deletedCount ?? 0,
+      matches: matches.deletedCount ?? 0,
+      achievements: achievements.deletedCount ?? 0,
+    };
   }
 
   async getLeaderboardByRoomTypes(limit = 30): Promise<

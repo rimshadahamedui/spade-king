@@ -10,9 +10,9 @@ import * as SplashScreen from 'expo-splash-screen';
 import * as SystemUI from 'expo-system-ui';
 import { useAuthStore } from '../store/authStore';
 
-async function lockLandscape(): Promise<void> {
+async function lockPortrait(): Promise<void> {
   try {
-    await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
+    await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
   } catch {
     /* Expo Go / web may not support lock */
   }
@@ -34,7 +34,7 @@ async function prepareNativeChrome(): Promise<void> {
 }
 
 /**
- * Keeps the native splash visible until landscape lock, fonts, and auth hydrate finish.
+ * Keeps the native splash visible until portrait lock, fonts, and auth hydrate finish.
  * Returns null while loading (native splash covers the screen).
  */
 export function useAppBootstrap(): boolean {
@@ -48,7 +48,7 @@ export function useAppBootstrap(): boolean {
 
   useEffect(() => {
     void prepareNativeChrome();
-    void lockLandscape();
+    void lockPortrait();
   }, []);
 
   useEffect(() => {
@@ -57,7 +57,7 @@ export function useAppBootstrap(): boolean {
     let cancelled = false;
 
     void (async () => {
-      await lockLandscape();
+      await lockPortrait();
       await hydrate();
 
       if (cancelled) return;

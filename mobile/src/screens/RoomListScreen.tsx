@@ -24,6 +24,7 @@ import { useGameStore } from '../store/gameStore';
 import type { RootStackParamList } from '../navigation/types';
 import { colors, fonts, radii, spacing, surfaces } from '../theme';
 import { clearRoomSyncGuards } from '../utils/roomSyncGuards';
+import { useIsPortrait } from '../hooks/useIsPortrait';
 
 const CARD_WIDTH = 252;
 const CARD_HEIGHT = 104;
@@ -40,10 +41,12 @@ function RoomCard({
   room,
   disabled,
   onJoin,
+  portrait,
 }: {
   room: PublicRoom;
   disabled: boolean;
   onJoin: () => void;
+  portrait?: boolean;
 }) {
   const isFull = room.players >= room.maxPlayers;
 
@@ -53,6 +56,7 @@ function RoomCard({
       onPress={onJoin}
       style={({ pressed }) => [
         styles.roomCard,
+        portrait && styles.roomCardPortrait,
         isFull && styles.roomCardFull,
         pressed && !isFull && styles.roomCardPressed,
       ]}
@@ -91,6 +95,7 @@ export function RoomListScreen() {
   const [busy, setBusy] = useState(false);
   const [search, setSearch] = useState('');
   const insets = useSafeAreaInsets();
+  const isPortrait = useIsPortrait();
 
   const publicRooms = useQuery({
     queryKey: ['publicRooms', roomType],
@@ -209,7 +214,7 @@ export function RoomListScreen() {
 
           <Text style={styles.sectionLabel}>Open tables</Text>
 
-          <View style={styles.listArea}>
+          <View style={[styles.listArea, isPortrait && styles.listAreaPortrait]}>
             {rooms.length === 0 ? (
               <View style={styles.emptyCard}>
                 <Text style={styles.emptyTitle}>
@@ -225,13 +230,22 @@ export function RoomListScreen() {
               </View>
             ) : (
               <FlatList
-                horizontal
+                horizontal={!isPortrait}
                 data={rooms}
                 keyExtractor={(r) => r.id}
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.listContent}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={[
+                  styles.listContent,
+                  isPortrait && styles.listContentPortrait,
+                ]}
                 renderItem={({ item }) => (
-                  <RoomCard room={item} disabled={busy} onJoin={() => join(item.inviteCode)} />
+                  <RoomCard
+                    room={item}
+                    disabled={busy}
+                    portrait={isPortrait}
+                    onJoin={() => join(item.inviteCode)}
+                  />
                 )}
               />
             )}
@@ -244,7 +258,7 @@ export function RoomListScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  root: { flex: 1, overflow: 'hidden', justifyContent: 'center' },
+  root: { flex: 1, overflow: 'hidden', justifyContent: 'flex-start' },
   topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -298,8 +312,20 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     paddingHorizontal: 8,
   },
+  listAreaPortrait: {
+    flex: 1,
+    height: undefined,
+    minHeight: 160,
+    paddingHorizontal: 0,
+    paddingVertical: 4,
+  },
   listContent: {
     paddingVertical: 6,
+    gap: 10,
+  },
+  listContentPortrait: {
+    paddingHorizontal: 8,
+    paddingVertical: 8,
     gap: 10,
   },
   roomCard: {
@@ -312,6 +338,12 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     marginRight: 10,
     justifyContent: 'space-between',
+  },
+  roomCardPortrait: {
+    width: '100%',
+    marginRight: 0,
+    minHeight: CARD_HEIGHT,
+    height: undefined,
   },
   roomCardFull: { opacity: 0.5 },
   roomCardPressed: { borderColor: colors.accentBright },

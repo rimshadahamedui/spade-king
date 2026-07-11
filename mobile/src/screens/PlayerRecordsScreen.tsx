@@ -1,33 +1,41 @@
 import React from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RouteProp } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { ScreenBackdrop } from '../components/ScreenBackdrop';
 import { ScreenTopBar } from '../components/ScreenTopBar';
 import { statsApi } from '../services/api';
 import type { RootStackParamList } from '../navigation/types';
 import { colors, fonts, radii, spacing, surfaces } from '../theme';
 
-type GlobalMatch = {
+type PlayerGame = {
   matchId: string;
   roomType: number;
+  finalScore: number;
+  placement: number;
+  won: boolean;
   playedAt: string;
-  playerCount: number;
-  winnerNames: string;
-  topScore: number;
 };
 
-export function HistoryScreen() {
+export function PlayerRecordsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const route = useRoute<RouteProp<RootStackParamList, 'PlayerRecords'>>();
   const insets = useSafeAreaInsets();
+  const { userId, username } = route.params;
 
   const q = useQuery({
-    queryKey: ['history'],
+    queryKey: ['playerHistory', userId],
     queryFn: async () => {
-      const res = await statsApi.history();
-      return res.data.data as GlobalMatch[];
+      const res = await statsApi.playerHistory(userId);
+      return res.data.data as {
+        userId: string;
+        username: string;
+        games: PlayerGame[];
+      };
     },
   });
 
@@ -48,41 +56,47 @@ export function HistoryScreen() {
     );
   }
 
+  const displayName = q.data?.username ?? username;
+  const games = q.data?.games ?? [];
+
   return (
     <ScreenBackdrop>
       <SafeAreaView style={styles.safe} edges={[]}>
         <View style={[styles.root, pad]}>
           <ScreenTopBar
-            title="Match History"
-            kicker="All tables"
-            onBack={() => navigation.navigate('Lobby')}
+            title={displayName}
+            kicker="Game records"
+            onBack={() => navigation.goBack()}
           />
 
           <FlatList
             style={styles.flex}
             contentContainerStyle={styles.content}
-            data={q.data ?? []}
+            data={games}
             keyExtractor={(item) => item.matchId}
-            ListEmptyComponent={<Text style={styles.empty}>No tables played yet.</Text>}
+            ListEmptyComponent={
+              <Text style={styles.empty}>No completed games recorded yet.</Text>
+            }
             renderItem={({ item }) => (
               <Pressable
-                onPress={() =>
-                  navigation.navigate('MatchDetail', { matchId: String(item.matchId) })
-                }
+                onPress={() => navigation.navigate('MatchDetail', { matchId: item.matchId })}
                 style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
               >
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>{item.roomType}P</Text>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.main} numberOfLines={1}>
-                    Winners: {item.winnerNames}
+                <View style={styles.body}>
+                  <Text style={styles.main}>
+                    {item.won ? 'Won' : `Place #${item.placement}`}
                   </Text>
-                  <Text style={styles.meta}>
-                    {item.playerCount} players · {new Date(item.playedAt).toLocaleString()}
-                  </Text>
+                  <Text style={styles.meta}>{new Date(item.playedAt).toLocaleString()}</Text>
                 </View>
-                <Text style={styles.score}>{item.topScore}</Text>
+                <View style={styles.scoreWrap}>
+                  {item.won ? (
+                    <Ionicons name="trophy" size={16} color={colors.accentBright} />
+                  ) : null}
+                  <Text style={[styles.score, item.won && styles.won]}>{item.finalScore}</Text>
+                </View>
               </Pressable>
             )}
           />
@@ -123,7 +137,14 @@ const styles = StyleSheet.create({
     borderColor: colors.borderStrong,
   },
   badgeText: { color: colors.accentBright, fontFamily: fonts.bodyBold },
+  body: { flex: 1, minWidth: 0 },
   main: { color: colors.text, fontFamily: fonts.bodyBold },
   meta: { color: colors.textMuted, marginTop: 4, fontSize: 12, fontFamily: fonts.body },
-  score: { color: colors.accentBright, fontSize: 24, fontFamily: fonts.display },
+  scoreWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  score: { color: colors.text, fontSize: 24, fontFamily: fonts.display },
+  won: { color: colors.accentBright },
 });

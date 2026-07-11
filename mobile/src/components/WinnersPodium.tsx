@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { PlayerMiniAvatar } from './PlayerMiniAvatar';
 import { colors, fonts, radii, spacing, surfaces } from '../theme';
@@ -11,52 +11,29 @@ export interface WinnerEntry {
   totalScore: number;
 }
 
-const TROPHY = {
-  gold: { color: '#FFD700', icon: 'trophy' as const },
-  silver: { color: '#C0C0C0', icon: 'trophy' as const },
-  bronze: { color: '#CD7F32', icon: 'trophy' as const },
-};
+const TROPHY = [
+  { color: '#FFD700', icon: 'trophy' as const },
+  { color: '#C0C0C0', icon: 'trophy' as const },
+  { color: '#CD7F32', icon: 'trophy' as const },
+];
 
 interface Props {
   players: WinnerEntry[];
-  /** When set, only these players appear (match winners). */
-  winnerIds?: string[];
+  /** Show top N players by total score (default 3). */
+  topCount?: number;
 }
 
-function resolveWinners(players: WinnerEntry[], winnerIds?: string[]): WinnerEntry[] {
-  if (winnerIds?.length) {
-    const idSet = new Set(winnerIds);
-    return players.filter((p) => idSet.has(p.userId));
-  }
-  if (!players.length) return [];
-  const max = Math.max(...players.map((p) => p.totalScore));
-  return players.filter((p) => p.totalScore === max);
-}
-
-export function WinnersPodium({ players, winnerIds }: Props) {
-  const ranked = [...resolveWinners(players, winnerIds)].sort(
-    (a, b) => b.totalScore - a.totalScore,
-  );
+export function WinnersPodium({ players, topCount = 3 }: Props) {
+  const ranked = [...players]
+    .sort((a, b) => b.totalScore - a.totalScore)
+    .slice(0, topCount);
 
   return (
     <View style={styles.panel}>
       <Text style={styles.heading}>Winners</Text>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
-        bounces={false}
-      >
+      <View style={styles.list}>
         {ranked.map((p, idx) => {
-          const topScore = ranked[0]?.totalScore ?? -Infinity;
-          const atTop = p.totalScore === topScore;
-          const trophy = atTop
-            ? TROPHY.gold
-            : idx === 1
-              ? TROPHY.silver
-              : idx === 2
-                ? TROPHY.bronze
-                : null;
+          const trophy = TROPHY[idx] ?? null;
 
           return (
             <View key={p.userId} style={[styles.row, idx === 0 && styles.rowFirst]}>
@@ -66,7 +43,7 @@ export function WinnersPodium({ players, winnerIds }: Props) {
                 ) : (
                   <Text style={styles.plainRank}>#{idx + 1}</Text>
                 )}
-                <PlayerMiniAvatar username={p.username} seatIndex={p.seatIndex ?? idx} size={36} />
+                <PlayerMiniAvatar username={p.username} seatIndex={p.seatIndex ?? idx} size={40} />
                 <Text style={styles.name} numberOfLines={1}>
                   {p.username}
                 </Text>
@@ -75,15 +52,13 @@ export function WinnersPodium({ players, winnerIds }: Props) {
             </View>
           );
         })}
-      </ScrollView>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   panel: {
-    flex: 1,
-    minWidth: 160,
     ...surfaces.panel,
     borderRadius: radii.md,
     padding: spacing.sm,
@@ -96,14 +71,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: spacing.sm,
   },
-  scroll: { flex: 1 },
-  list: { gap: 8, paddingBottom: 4 },
+  list: { gap: 8 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 8,
-    paddingHorizontal: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
     borderRadius: radii.sm,
     backgroundColor: 'rgba(0,0,0,0.2)',
     gap: 8,
@@ -117,7 +91,7 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
     minWidth: 0,
   },
   plainRank: {
@@ -131,13 +105,13 @@ const styles = StyleSheet.create({
     flex: 1,
     color: colors.cream,
     fontFamily: fonts.bodyBold,
-    fontSize: 14,
+    fontSize: 15,
   },
   total: {
     color: colors.accentBright,
     fontFamily: fonts.display,
-    fontSize: 22,
-    minWidth: 36,
+    fontSize: 24,
+    minWidth: 40,
     textAlign: 'right',
   },
 });

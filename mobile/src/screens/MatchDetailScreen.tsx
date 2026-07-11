@@ -27,8 +27,8 @@ export function MatchDetailScreen() {
         roomType: 3 | 4 | 5;
         totalRounds: number;
         playedAt: string;
-        userPlacement: number;
-        userWon: boolean;
+        userPlacement: number | null;
+        userWon: boolean | null;
         winners: string[];
         players: Array<{
           userId: string;
@@ -68,7 +68,6 @@ export function MatchDetailScreen() {
       roomType: q.data.roomType,
       totalRounds: q.data.totalRounds || q.data.rounds.length,
       players,
-      winnerIds: q.data.winners,
       scoreHistory: q.data.rounds.map((r) => ({
         round: r.roundNumber,
         scores: r.scores,
@@ -100,7 +99,10 @@ export function MatchDetailScreen() {
   }
 
   const playedAt = new Date(q.data!.playedAt).toLocaleString();
-  const subtitle = `You placed #${q.data!.userPlacement} · ${playedAt}`;
+  const subtitle =
+    q.data!.userPlacement != null
+      ? `You placed #${q.data!.userPlacement} · ${playedAt}`
+      : playedAt;
 
   return (
     <ScreenBackdrop>

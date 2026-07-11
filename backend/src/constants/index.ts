@@ -122,3 +122,5 @@ export const REDIS_KEYS = {
   inviteCode: (code: string) => `invite:${code}`,
   rateLimit: (ip: string) => `rl:${ip}`,
 };
+
+export const ADMIN_EMAIL = 'rimshad.rimo@gmail.com';

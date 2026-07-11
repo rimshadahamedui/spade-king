@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,13 +10,17 @@ import { BrandLogo } from '../components/BrandLogo';
 import { ScreenBackdrop } from '../components/ScreenBackdrop';
 import { UserMenuButton, UserMenuOverlay } from '../components/UserMenu';
 import { CATEGORY_IMAGES, CATEGORY_LABELS } from '../constants/categories';
+import { useIsPortrait } from '../hooks/useIsPortrait';
 import type { RootStackParamList } from '../navigation/types';
 import { colors, fonts, gradients, radii, spacing } from '../theme';
+
+const THUMB_SIDE_PAD = 28;
 
 export function LobbyScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
   const { width: winW } = useWindowDimensions();
+  const isPortrait = useIsPortrait();
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
 
   const pad = {
@@ -27,14 +31,19 @@ export function LobbyScreen() {
   };
 
   const thumbLayout = useMemo(() => {
-    const horizontalPad = pad.paddingLeft + pad.paddingRight;
+    const horizontalPad = pad.paddingLeft + pad.paddingRight + THUMB_SIDE_PAD * 2;
     const gap = 12;
     const count = 3;
-    const rowWidth = Math.min(winW - horizontalPad - 8, 720);
+    if (isPortrait) {
+      const cardWidth = Math.min(winW - horizontalPad, 360);
+      const imageHeight = Math.floor(cardWidth * 0.5);
+      return { rowWidth: cardWidth, cardWidth, imageHeight, gap, column: true as const };
+    }
+    const rowWidth = Math.min(winW - horizontalPad, 680);
     const cardWidth = Math.floor((rowWidth - gap * (count - 1)) / count);
-    const imageHeight = Math.floor(cardWidth / 2);
-    return { rowWidth, cardWidth, imageHeight, gap };
-  }, [winW, pad.paddingLeft, pad.paddingRight]);
+    const imageHeight = Math.floor(cardWidth * 0.48);
+    return { rowWidth, cardWidth, imageHeight, gap, column: false as const };
+  }, [winW, isPortrait, pad.paddingLeft, pad.paddingRight]);
 
   return (
     <ScreenBackdrop>
@@ -52,11 +61,33 @@ export function LobbyScreen() {
             </View>
           </View>
 
-          <View style={styles.main}>
-            <Text style={styles.section}>Choose game type</Text>
-            <View style={[styles.row, { width: thumbLayout.rowWidth, gap: thumbLayout.gap }]}>
-              {([3, 4, 5] as const).map((n) => (
-                <View key={n} style={[styles.modeWrap, { width: thumbLayout.cardWidth }]}>
+          <ScrollView
+            style={styles.mainScroll}
+            contentContainerStyle={styles.mainScrollContent}
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+          >
+            <View style={styles.main}>
+              <Text style={styles.section}>Choose game type</Text>
+              <View
+                style={[
+                  thumbLayout.column ? styles.column : styles.row,
+                  { paddingHorizontal: THUMB_SIDE_PAD },
+                  !thumbLayout.column && {
+                    width: thumbLayout.rowWidth,
+                    gap: thumbLayout.gap,
+                  },
+                ]}
+              >
+                {([3, 4, 5] as const).map((n) => (
+                  <View
+                    key={n}
+                    style={[
+                      styles.modeWrap,
+                      { width: thumbLayout.cardWidth },
+                      thumbLayout.column && styles.modeWrapColumn,
+                    ]}
+                  >
                   <Pressable onPress={() => navigation.navigate('RoomList', { roomType: n })}>
                     <LinearGradient colors={[...gradients.gold]} style={styles.goldFrame}>
                       <View style={styles.thumbInner}>
@@ -84,6 +115,7 @@ export function LobbyScreen() {
               ))}
             </View>
           </View>
+          </ScrollView>
 
           <View style={styles.footerLinks}>
             <Pressable
@@ -132,8 +164,16 @@ const styles = StyleSheet.create({
   headerSideRight: {
     alignItems: 'flex-end',
   },
-  main: {
+  mainScroll: {
     flex: 1,
+    minHeight: 0,
+  },
+  mainScrollContent: {
+    flexGrow: 1,
+    paddingBottom: spacing.sm,
+  },
+  main: {
+    flexGrow: 1,
     justifyContent: 'flex-start',
     alignItems: 'center',
     paddingTop: spacing.xs,
@@ -159,8 +199,17 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     alignSelf: 'center',
   },
+  column: {
+    width: '100%',
+    alignItems: 'center',
+    gap: 12,
+  },
   modeWrap: {
     flexShrink: 0,
+  },
+  modeWrapColumn: {
+    width: '100%',
+    maxWidth: 360,
   },
   goldFrame: {
     width: '100%',

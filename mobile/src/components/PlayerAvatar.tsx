@@ -86,25 +86,32 @@ export function PlayerAvatar({
   return (
     <View style={[styles.wrap, compact && styles.wrapCompact]}>
       <View style={styles.avatarRow}>
-        <Animated.View
-          style={[
-            styles.ring,
-            { borderColor: accent },
-            active && styles.ringActive,
-            isMe && styles.ringMe,
-            active && pulseStyle,
-          ]}
-        >
-          <View style={[styles.circle, compact && styles.circleCompact, { backgroundColor: accent }]}>
-            <Text style={[styles.initial, compact && styles.initialCompact]}>{initial}</Text>
-          </View>
-          {isDealer && (
-            <View style={styles.dealerBadge}>
-              <Text style={styles.dealerText}>D</Text>
+        <View style={styles.avatarCol}>
+          <Animated.View
+            style={[
+              styles.ring,
+              { borderColor: accent },
+              active && styles.ringActive,
+              isMe && styles.ringMe,
+              active && pulseStyle,
+            ]}
+          >
+            <View style={[styles.circle, compact && styles.circleCompact, { backgroundColor: accent }]}>
+              <Text style={[styles.initial, compact && styles.initialCompact]}>{initial}</Text>
             </View>
+            {isDealer && (
+              <View style={styles.dealerBadge}>
+                <Text style={styles.dealerText}>D</Text>
+              </View>
+            )}
+            {active && <View style={styles.turnDot} />}
+          </Animated.View>
+          {totalScore !== undefined && (
+            <Text style={[styles.totalBadge, compact && styles.totalBadgeCompact]}>
+              Σ {totalScore}
+            </Text>
           )}
-          {active && <View style={styles.turnDot} />}
-        </Animated.View>
+        </View>
 
         <View style={styles.infoColumn}>
             <Text style={[styles.name, compact && styles.nameCompact]} numberOfLines={1}>
@@ -129,10 +136,6 @@ export function PlayerAvatar({
           </View>
       </View>
 
-      {totalScore !== undefined && !compact && (
-        <Text style={styles.total}>{totalScore} pts</Text>
-      )}
-
       {roundWon !== undefined && roundWon !== null && (
         <Text style={[styles.roundWon, roundWon >= 0 ? styles.wonPos : styles.wonNeg]}>
           {roundWon >= 0 ? `+${roundWon}` : roundWon}
@@ -152,6 +155,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 5,
+  },
+  avatarCol: {
+    alignItems: 'center',
+    gap: 2,
   },
   infoColumn: {
     justifyContent: 'flex-start',
@@ -262,11 +269,19 @@ const styles = StyleSheet.create({
     maxWidth: 72,
   },
   nameCompact: { fontSize: 9, maxWidth: 68 },
-  total: {
+  totalBadge: {
     color: colors.accentBright,
+    fontSize: 9,
+    fontFamily: fonts.bodyBold,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    overflow: 'hidden',
+  },
+  totalBadgeCompact: {
     fontSize: 8,
-    marginTop: 1,
-    fontFamily: fonts.bodyMedium,
+    paddingHorizontal: 3,
   },
   roundWon: {
     fontFamily: fonts.bodyBold,

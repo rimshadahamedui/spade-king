@@ -1,8 +1,9 @@
 import React from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { PrivateGameSnapshot } from '../models/types';
-import { ScoreGrid } from './ScoreGrid';
+import { useIsPortrait } from '../hooks/useIsPortrait';
+import { ScoreRoundsList } from './ScoreRoundsList';
 import { colors, radii, spacing, surfaces } from '../theme';
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
   onToggle: () => void;
   bottomInset?: number;
   leftInset?: number;
+  rightInset?: number;
 }
 
 export function ScoreTablePanel({
@@ -19,25 +21,42 @@ export function ScoreTablePanel({
   onToggle,
   bottomInset = 8,
   leftInset = 10,
+  rightInset = 10,
 }: Props) {
+  const isPortrait = useIsPortrait();
+  const { width: winW, height: winH } = useWindowDimensions();
+  const panelWidth = Math.max(0, winW - leftInset - rightInset);
+  const scoreMaxHeight = Math.floor(winH * 0.6) - spacing.xl;
+
   return (
     <View
-      style={[styles.wrap, { left: leftInset, bottom: bottomInset }]}
+      style={[
+        styles.wrap,
+        isPortrait ? styles.wrapPortrait : styles.wrapLandscape,
+        { bottom: bottomInset, left: leftInset, right: isPortrait ? rightInset : undefined },
+      ]}
       pointerEvents="box-none"
     >
       {open && (
-        <View style={styles.panel}>
-          <ScoreGrid snapshot={snapshot} size="compact" />
+        <View style={[styles.panel, { width: panelWidth }]}>
+          <ScoreRoundsList snapshot={snapshot} maxHeight={scoreMaxHeight} />
         </View>
       )}
 
       <Pressable
         onPress={onToggle}
-        style={({ pressed }) => [styles.toggleBtn, open && styles.toggleBtnOn, pressed && styles.togglePressed]}
+        style={({ pressed }) => [
+          styles.toggleBtn,
+          open && styles.toggleBtnOn,
+          pressed && styles.togglePressed,
+          isPortrait && styles.toggleBtnPortrait,
+        ]}
         hitSlop={8}
+        accessibilityLabel={open ? 'Close scores' : 'Open scores'}
+        accessibilityRole="button"
       >
         <Ionicons
-          name={open ? 'close' : 'grid-outline'}
+          name={open ? 'close' : 'list-outline'}
           size={18}
           color={open ? colors.cream : colors.accentBright}
         />
@@ -51,6 +70,13 @@ const styles = StyleSheet.create({
     position: 'absolute',
     zIndex: 20001,
     elevation: 20001,
+  },
+  wrapPortrait: {
+    left: 10,
+    right: 10,
+    alignItems: 'flex-start',
+  },
+  wrapLandscape: {
     alignItems: 'flex-start',
   },
   panel: {
@@ -61,7 +87,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(2, 4, 8, 0.96)',
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.md,
-    maxWidth: '96%',
     zIndex: 20002,
     elevation: 20002,
     shadowColor: '#000',
@@ -84,6 +109,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
+  },
+  toggleBtnPortrait: {
+    alignSelf: 'flex-start',
   },
   toggleBtnOn: {
     borderColor: colors.accentBright,

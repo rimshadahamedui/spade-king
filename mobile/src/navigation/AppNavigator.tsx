@@ -15,6 +15,7 @@ import { ScoreboardScreen } from '../screens/ScoreboardScreen';
 import { HistoryScreen } from '../screens/HistoryScreen';
 import { MatchDetailScreen } from '../screens/MatchDetailScreen';
 import { LeaderboardScreen } from '../screens/LeaderboardScreen';
+import { PlayerRecordsScreen } from '../screens/PlayerRecordsScreen';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { useAuthStore } from '../store/authStore';
 import { colors, fonts } from '../theme';
@@ -71,6 +72,7 @@ function RootNavigator() {
           <Stack.Screen name="History" component={HistoryScreen} />
           <Stack.Screen name="MatchDetail" component={MatchDetailScreen} />
           <Stack.Screen name="Leaderboard" component={LeaderboardScreen} />
+          <Stack.Screen name="PlayerRecords" component={PlayerRecordsScreen} />
         </>
       )}
     </Stack.Navigator>

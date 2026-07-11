@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
-import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { ScoreGrid } from './ScoreGrid';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScoreRoundsList } from './ScoreRoundsList';
 import { WinnersPodium, type WinnerEntry } from './WinnersPodium';
 import type { PrivateGameSnapshot } from '../models/types';
 import { colors, fonts, radii, spacing, surfaces } from '../theme';
@@ -9,7 +9,6 @@ export interface MatchResultsData {
   roomType: 3 | 4 | 5;
   totalRounds: number;
   players: WinnerEntry[];
-  winnerIds?: string[];
   scoreHistory: Array<{
     round: number;
     scores: Array<{ userId: string; bid: number; tricksWon: number; points: number }>;
@@ -21,8 +20,6 @@ interface Props {
   title?: string;
   kicker?: string;
   highlightRound?: number;
-  /** Show bid · tricks per round in scoreboard (default true for results) */
-  showBidTake?: boolean;
   footer?: React.ReactNode;
 }
 
@@ -60,16 +57,14 @@ function toSnapshot(data: MatchResultsData, highlightRound?: number): PrivateGam
   };
 }
 
+/** Portrait results: winners on top, vertical scoreboard below. */
 export function MatchResultsPanel({
   data,
   title,
   kicker,
   highlightRound,
-  showBidTake = true,
   footer,
 }: Props) {
-  const { width } = useWindowDimensions();
-  const stacked = width < 640;
   const snapshot = useMemo(
     () => toSnapshot(data, highlightRound),
     [data, highlightRound],
@@ -84,26 +79,24 @@ export function MatchResultsPanel({
         </View>
       )}
 
-      <View style={[styles.split, stacked && styles.splitStacked]}>
-        <View style={[styles.scorePanel, stacked && styles.scorePanelStacked]}>
-          <Text style={styles.panelTitle}>Scoreboard</Text>
-          {showBidTake ? (
-            <Text style={styles.panelHint}>Bid · tricks (points per round)</Text>
-          ) : null}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} bounces={false}>
-            <ScoreGrid
-              snapshot={snapshot}
-              size="large"
-              highlightRound={highlightRound}
-              showBidTake={showBidTake}
-            />
-          </ScrollView>
-        </View>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
+        <WinnersPodium players={data.players} topCount={3} />
 
-        <View style={[styles.winnersWrap, stacked && styles.winnersWrapStacked]}>
-          <WinnersPodium players={data.players} winnerIds={data.winnerIds} />
+        <View style={styles.scorePanel}>
+          <Text style={styles.panelTitle}>Scoreboard</Text>
+          <ScoreRoundsList
+            snapshot={snapshot}
+            highlightRound={highlightRound}
+            size="comfortable"
+            scrollable={false}
+          />
         </View>
-      </View>
+      </ScrollView>
 
       {footer}
     </View>
@@ -122,30 +115,21 @@ const styles = StyleSheet.create({
   },
   title: {
     color: colors.cream,
-    fontSize: 24,
+    fontSize: 22,
     fontFamily: fonts.display,
     marginTop: 2,
   },
-  split: {
-    flex: 1,
-    flexDirection: 'row',
+  scroll: { flex: 1, minHeight: 0 },
+  scrollContent: {
     gap: spacing.sm,
-    minHeight: 0,
-  },
-  splitStacked: {
-    flexDirection: 'column',
+    paddingBottom: spacing.xs,
   },
   scorePanel: {
-    flex: 1.4,
-    minWidth: 0,
+    width: '100%',
     ...surfaces.panel,
     borderRadius: radii.md,
     padding: spacing.sm,
     borderColor: colors.borderStrong,
-  },
-  scorePanelStacked: {
-    flex: 0,
-    maxHeight: 280,
   },
   panelTitle: {
     color: colors.textMuted,
@@ -155,21 +139,5 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     marginBottom: spacing.xs,
     textAlign: 'center',
-  },
-  panelHint: {
-    color: colors.textDim,
-    fontFamily: fonts.body,
-    fontSize: 9,
-    textAlign: 'center',
-    marginBottom: spacing.xs,
-  },
-  winnersWrap: {
-    flex: 1,
-    minWidth: 180,
-    minHeight: 0,
-  },
-  winnersWrapStacked: {
-    flex: 1,
-    minHeight: 180,
   },
 });

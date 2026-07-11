@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { AuthController } from '../controllers/AuthController';
+import { AdminController } from '../controllers/AdminController';
 import { RoomController, StatsController } from '../controllers/RoomController';
 import { authenticate, validateBody } from '../middlewares/auth';
 import {
@@ -15,6 +16,7 @@ import {
 const authController = new AuthController();
 const roomController = new RoomController();
 const statsController = new StatsController();
+const adminController = new AdminController();
 
 export const authRouter = Router();
 authRouter.post('/register', validateBody(registerSchema), authController.register);
@@ -34,6 +36,12 @@ export const statsRouter = Router();
 statsRouter.use(authenticate);
 statsRouter.get('/me', statsController.me);
 statsRouter.get('/history', statsController.history);
+statsRouter.get('/player/:userId/history', statsController.playerHistory);
 statsRouter.get('/match/:matchId', statsController.matchDetail);
 statsRouter.get('/leaderboard', statsController.leaderboard);
 statsRouter.get('/achievements', statsController.achievements);
+
+export const adminRouter = Router();
+adminRouter.use(authenticate);
+adminRouter.post('/purge-rooms', adminController.purgeRooms);
+adminRouter.post('/clear-stats', adminController.clearStats);

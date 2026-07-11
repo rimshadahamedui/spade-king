@@ -96,10 +96,35 @@ export class StatsController {
     }
   };
 
-  history = async (req: AuthedRequest, res: Response, next: NextFunction): Promise<void> => {
+  history = async (_req: AuthedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const history = await matches.getHistoryForUser(req.user!.sub);
+      const history = await matches.getGlobalHistory();
       res.json({ success: true, data: history });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  playerHistory = async (req: AuthedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = String(req.params.userId);
+      const user = await matches.findUserName(userId);
+      const games = await matches.getPlayerMatchHistory(userId);
+      res.json({
+        success: true,
+        data: {
+          userId,
+          username: user ?? 'Player',
+          games: games.map((g) => ({
+            matchId: g.matchId.toString(),
+            roomType: g.roomType,
+            finalScore: g.finalScore,
+            placement: g.placement,
+            won: g.won,
+            playedAt: g.playedAt,
+          })),
+        },
+      });
     } catch (error) {
       next(error);
     }
@@ -107,7 +132,7 @@ export class StatsController {
 
   leaderboard = async (_req: AuthedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const board = await matches.getLeaderboardByRoomTypes();
+      const board = await matches.getLeaderboard();
       res.json({ success: true, data: board });
     } catch (error) {
       next(error);
@@ -125,7 +150,7 @@ export class StatsController {
 
   matchDetail = async (req: AuthedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const detail = await matches.getMatchDetailForUser(String(req.params.matchId), req.user!.sub);
+      const detail = await matches.getMatchDetail(String(req.params.matchId), req.user!.sub);
       if (!detail) {
         res.status(404).json({ success: false, message: 'Match not found' });
         return;

@@ -1,5 +1,5 @@
-import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { PRESET_CHAT_OPTIONS } from '../constants/presetChat';
 import { colors, fonts, radii, spacing, surfaces } from '../theme';
@@ -12,13 +12,17 @@ interface Props {
 }
 
 export function PresetChatPanel({ open, busy, onToggle, onSelect }: Props) {
+  const { height: winH } = useWindowDimensions();
+  const menuMaxHeight = useMemo(() => Math.min(Math.floor(winH * 0.52), 440), [winH]);
+  const scrollMaxHeight = useMemo(() => menuMaxHeight - 36, [menuMaxHeight]);
+
   return (
     <View style={styles.wrap} pointerEvents="box-none">
       {open && (
-        <View style={styles.menu}>
+        <View style={[styles.menu, { maxHeight: menuMaxHeight }]}>
           <Text style={styles.menuTitle}>Quick chat</Text>
           <ScrollView
-            style={styles.menuScroll}
+            style={[styles.menuScroll, { maxHeight: scrollMaxHeight }]}
             contentContainerStyle={styles.menuList}
             showsVerticalScrollIndicator={false}
             bounces={false}
@@ -78,8 +82,8 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     paddingHorizontal: spacing.sm,
     paddingBottom: spacing.xs,
-    maxWidth: 168,
-    maxHeight: 220,
+    width: 188,
+    maxWidth: '92%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
@@ -95,9 +99,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
     paddingHorizontal: 2,
   },
-  menuScroll: {
-    maxHeight: 188,
-  },
+  menuScroll: {},
   menuList: {
     gap: 6,
     paddingBottom: 2,

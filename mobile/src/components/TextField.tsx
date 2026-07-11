@@ -59,7 +59,11 @@ export function TextField({ label, error, compact, style, secureTextEntry, ...re
 }
 
 const styles = StyleSheet.create({
-  wrap: { marginBottom: spacing.md },
+  wrap: {
+    width: '100%',
+    alignSelf: 'stretch',
+    marginBottom: spacing.md,
+  },
   wrapCompact: { marginBottom: spacing.sm },
   label: {
     color: colors.accentBright,
@@ -75,10 +79,12 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
   },
   inputRow: {
+    width: '100%',
     position: 'relative',
     justifyContent: 'center',
   },
   input: {
+    width: '100%',
     ...surfaces.input,
     borderRadius: radii.md,
     color: colors.text,

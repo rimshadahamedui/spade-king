@@ -82,6 +82,11 @@ export const statsApi = {
   me: () => api.get('/stats/me'),
   history: () => api.get('/stats/history'),
   matchDetail: (matchId: string) => api.get(`/stats/match/${matchId}`),
+  playerHistory: (userId: string) => api.get(`/stats/player/${userId}/history`),
   leaderboard: () => api.get('/stats/leaderboard'),
   achievements: () => api.get('/stats/achievements'),
+};
+
+export const adminApi = {
+  purgeRooms: () => api.post('/admin/purge-rooms'),
 };

@@ -154,7 +154,7 @@ const styles = StyleSheet.create({
   },
   meSeat: {
     position: 'absolute',
-    bottom: 4,
+    bottom: 8,
     left: 0,
     right: 0,
     alignItems: 'center',

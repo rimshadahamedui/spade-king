@@ -3,7 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { env } from './config/env';
-import { authRouter, roomRouter, statsRouter } from './routes';
+import { authRouter, roomRouter, statsRouter, adminRouter } from './routes';
 import { errorHandler } from './middlewares/auth';
 
 export function createApp() {
@@ -32,6 +32,7 @@ export function createApp() {
   app.use(`${env.API_PREFIX}/auth`, authRouter);
   app.use(`${env.API_PREFIX}/rooms`, roomRouter);
   app.use(`${env.API_PREFIX}/stats`, statsRouter);
+  app.use(`${env.API_PREFIX}/admin`, adminRouter);
 
   app.use(errorHandler);
   return app;

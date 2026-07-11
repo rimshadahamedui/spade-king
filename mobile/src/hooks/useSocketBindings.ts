@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { AppState, InteractionManager, type AppStateStatus } from 'react-native';
+import { AppState, type AppStateStatus } from 'react-native';
 import {
   ensureSocketConnected,
   getSocket,
@@ -12,7 +12,6 @@ import { useGameStore } from '../store/gameStore';
 import { queryClient } from '../queryClient';
 import { navigateToActiveRoom, navigateToLobby } from '../navigation/navigationRef';
 import type { PrivateGameSnapshot, Room } from '../models/types';
-import { alertMessage } from '../utils/confirm';
 import {
   armRoomClosedGuards,
   clearRoomSyncGuards,
@@ -271,15 +270,9 @@ export function useSocketBindings() {
         deferRoundShuffle = false;
         roundShuffleInProgress = false;
         armRoomClosedGuards(payload?.roomId ?? useGameStore.getState().room?.id ?? null);
-        const suspended = payload?.reason === 'suspended';
         const closedRoomId = payload?.roomId ?? null;
         useGameStore.getState().reset();
         navigateToLobby();
-        if (suspended) {
-          InteractionManager.runAfterInteractions(() => {
-            alertMessage('Game ended', 'All players agreed to end. No scores were saved.');
-          });
-        }
         void queryClient.invalidateQueries({ queryKey: ['publicRooms'] });
         setTimeout(() => {
           if (closedRoomId) clearRoomSyncGuards();

@@ -21,6 +21,7 @@ import { ScreenBackdrop } from '../components/ScreenBackdrop';
 import { emitAck, ensureSocketConnected, SOCKET_EVENTS } from '../services/socket';
 import { formatApiError } from '../utils/network';
 import { clearRoomSyncGuards } from '../utils/roomSyncGuards';
+import { useIsPortrait } from '../hooks/useIsPortrait';
 import { useAuthStore } from '../store/authStore';
 import { useGameStore } from '../store/gameStore';
 import type { RootStackParamList } from '../navigation/types';
@@ -42,6 +43,7 @@ export function RoomScreen() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const insets = useSafeAreaInsets();
+  const isPortrait = useIsPortrait();
 
   const isHost = room?.hostId === user?.id;
 
@@ -253,8 +255,8 @@ export function RoomScreen() {
               </View>
             )}
 
-            <View style={styles.mainRow}>
-              <View style={styles.playersPanel}>
+            <View style={[styles.mainRow, isPortrait && styles.mainRowPortrait]}>
+              <View style={[styles.playersPanel, isPortrait && styles.playersPanelPortrait]}>
                 <Text style={styles.panelTitle}>Players</Text>
                 <LobbySeatRing
                   maxPlayers={room.maxPlayers}
@@ -265,7 +267,7 @@ export function RoomScreen() {
                 />
               </View>
 
-              <View style={styles.chatPanel}>
+              <View style={[styles.chatPanel, isPortrait && styles.chatPanelPortrait]}>
                 <Text style={styles.panelTitle}>Chat</Text>
                 <View style={styles.chatBox}>
                   <FlatList
@@ -406,6 +408,9 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     minHeight: 0,
   },
+  mainRowPortrait: {
+    flexDirection: 'column',
+  },
   playersPanel: {
     flex: 1,
     minWidth: 0,
@@ -413,6 +418,11 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     ...surfaces.panel,
     padding: spacing.sm,
+  },
+  playersPanelPortrait: {
+    flex: 0,
+    minHeight: 220,
+    maxHeight: 280,
   },
   chatPanel: {
     width: 220,
@@ -422,6 +432,11 @@ const styles = StyleSheet.create({
     ...surfaces.panel,
     padding: spacing.sm,
     minHeight: 0,
+  },
+  chatPanelPortrait: {
+    width: '100%',
+    flex: 1,
+    minHeight: 160,
   },
   panelTitle: {
     color: colors.textMuted,

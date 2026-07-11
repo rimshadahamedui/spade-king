@@ -85,10 +85,10 @@ export function AuthScreen() {
   };
 
   const pad = {
-    paddingTop: Math.max(insets.top, 8),
-    paddingBottom: Math.max(insets.bottom, 8),
-    paddingLeft: Math.max(insets.left, 14),
-    paddingRight: Math.max(insets.right, 14),
+    paddingTop: Math.max(insets.top, 12),
+    paddingBottom: Math.max(insets.bottom, 12),
+    paddingLeft: Math.max(insets.left, 16),
+    paddingRight: Math.max(insets.right, 16),
   };
 
   return (
@@ -97,7 +97,7 @@ export function AuthScreen() {
         <KeyboardAvoidingView
           style={styles.flex}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
         >
           <StatusBar style="light" />
           <ScrollView
@@ -105,119 +105,119 @@ export function AuthScreen() {
             contentContainerStyle={[styles.scrollContent, pad]}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
+            showsVerticalScrollIndicator={false}
           >
-            <View style={styles.root}>
-              <View style={styles.hero}>
-                <BrandLogo size="xl" />
+            <View style={styles.hero}>
+              <BrandLogo size="xl" />
+            </View>
+
+            <View style={styles.panel}>
+              <View style={styles.tabs}>
+                {(['guest', 'login', 'register'] as Mode[]).map((m) => (
+                  <Pressable
+                    key={m}
+                    onPress={() => switchMode(m)}
+                    style={[styles.tab, mode === m && styles.tabOn]}
+                  >
+                    <Text style={[styles.tabText, mode === m && styles.tabTextOn]}>{m}</Text>
+                  </Pressable>
+                ))}
               </View>
 
-              <View style={styles.panel}>
-                <View style={styles.tabs}>
-                  {(['guest', 'login', 'register'] as Mode[]).map((m) => (
-                    <Pressable
-                      key={m}
-                      onPress={() => switchMode(m)}
-                      style={[styles.tab, mode === m && styles.tabOn]}
-                    >
-                      <Text style={[styles.tabText, mode === m && styles.tabTextOn]}>{m}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-
-                <View style={styles.fields}>
-                  {(mode === 'login' || mode === 'register') && (
-                    <>
-                      <Controller
-                        control={control}
-                        name="email"
-                        rules={{
-                          required: true,
-                          pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                        }}
-                        render={({ field: { onChange, value } }) => (
-                          <TextField
-                            compact
-                            label="Email"
-                            autoCapitalize="none"
-                            autoCorrect={false}
-                            keyboardType="email-address"
-                            textContentType="emailAddress"
-                            value={value}
-                            onChangeText={onChange}
-                            placeholder="you@example.com"
-                          />
-                        )}
-                      />
-                      <Controller
-                        control={control}
-                        name="password"
-                        rules={
-                          mode === 'login'
-                            ? { required: true, minLength: 1 }
-                            : { required: true, minLength: 8 }
-                        }
-                        render={({ field: { onChange, value } }) => (
-                          <TextField
-                            compact
-                            label="Password"
-                            secureTextEntry
-                            textContentType={mode === 'register' ? 'newPassword' : 'password'}
-                            value={value}
-                            onChangeText={onChange}
-                            placeholder="••••••••"
-                          />
-                        )}
-                      />
-                    </>
-                  )}
-
-                  {(mode === 'register' || mode === 'guest') && (
+              <View style={styles.fields}>
+                {(mode === 'login' || mode === 'register') && (
+                  <>
                     <Controller
                       control={control}
-                      name="username"
+                      name="email"
+                      rules={{
+                        required: true,
+                        pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                      }}
+                      render={({ field: { onChange, value } }) => (
+                        <TextField
+                          compact
+                          label="Email"
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                          keyboardType="email-address"
+                          textContentType="emailAddress"
+                          value={value}
+                          onChangeText={onChange}
+                          placeholder="you@example.com"
+                        />
+                      )}
+                    />
+                    <Controller
+                      control={control}
+                      name="password"
                       rules={
-                        mode === 'register'
-                          ? { required: true, minLength: 2, maxLength: 24 }
-                          : mode === 'guest'
-                            ? {
-                                validate: (value) =>
-                                  !value?.trim() ||
-                                  (value.trim().length >= 2 && value.trim().length <= 24) ||
-                                  '2–24 characters',
-                              }
-                            : undefined
+                        mode === 'login'
+                          ? { required: true, minLength: 1 }
+                          : { required: true, minLength: 8 }
                       }
                       render={({ field: { onChange, value } }) => (
                         <TextField
                           compact
-                          label={mode === 'guest' ? 'Table name' : 'Username'}
-                          autoCapitalize="none"
-                          autoCorrect={false}
+                          label="Password"
+                          secureTextEntry
+                          textContentType={mode === 'register' ? 'newPassword' : 'password'}
                           value={value}
                           onChangeText={onChange}
-                          placeholder={mode === 'guest' ? 'Optional alias' : 'Choose a name'}
+                          placeholder="••••••••"
                         />
                       )}
                     />
-                  )}
-                </View>
+                  </>
+                )}
 
-                {!!error && <Text style={styles.error}>{error}</Text>}
-
-                <Button
-                  title={
-                    busy
-                      ? 'Please wait…'
-                      : mode === 'guest'
-                        ? 'Enter the lounge'
-                        : mode === 'login'
-                          ? 'Sign In'
-                          : 'Create Account'
-                  }
-                  onPress={onSubmit}
-                  disabled={busy}
-                />
+                {(mode === 'register' || mode === 'guest') && (
+                  <Controller
+                    control={control}
+                    name="username"
+                    rules={
+                      mode === 'register'
+                        ? { required: true, minLength: 2, maxLength: 24 }
+                        : mode === 'guest'
+                          ? {
+                              validate: (value) =>
+                                !value?.trim() ||
+                                (value.trim().length >= 2 && value.trim().length <= 24) ||
+                                '2–24 characters',
+                            }
+                          : undefined
+                    }
+                    render={({ field: { onChange, value } }) => (
+                      <TextField
+                        compact
+                        label={mode === 'guest' ? 'Table name' : 'Username'}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        value={value}
+                        onChangeText={onChange}
+                        placeholder={mode === 'guest' ? 'Optional alias' : 'Choose a name'}
+                      />
+                    )}
+                  />
+                )}
               </View>
+
+              {!!error && <Text style={styles.error}>{error}</Text>}
+
+              <Button
+                title={
+                  busy
+                    ? 'Please wait…'
+                    : mode === 'guest'
+                      ? 'Enter the lounge'
+                      : mode === 'login'
+                        ? 'Sign In'
+                        : 'Create Account'
+                }
+                onPress={onSubmit}
+                disabled={busy}
+                style={styles.submitBtn}
+              />
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -228,53 +228,66 @@ export function AuthScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  flex: { flex: 1 },
-  scrollContent: { flexGrow: 1, justifyContent: 'center' },
-  root: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  flex: { flex: 1, width: '100%' },
+  scrollContent: {
+    flexGrow: 1,
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
+    justifyContent: 'center',
     gap: spacing.lg,
-    minHeight: 280,
+    paddingVertical: spacing.md,
   },
   hero: {
-    flex: 0.38,
+    width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 0,
+    paddingVertical: spacing.sm,
   },
   panel: {
-    flex: 0.62,
+    width: '100%',
+    alignSelf: 'stretch',
     borderRadius: radii.lg,
     ...surfaces.panel,
-    padding: spacing.md,
-    minWidth: 0,
+    padding: spacing.lg,
+    borderColor: colors.borderStrong,
   },
   tabs: {
+    width: '100%',
     flexDirection: 'row',
-    marginBottom: spacing.sm,
+    marginBottom: spacing.md,
     ...surfaces.chip,
     borderRadius: radii.pill,
-    padding: 3,
+    padding: 4,
   },
   tab: {
     flex: 1,
-    paddingVertical: 7,
+    paddingVertical: 10,
     borderRadius: radii.pill,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   tabOn: { backgroundColor: 'rgba(201,162,39,0.2)' },
   tabText: {
     color: colors.textDim,
     textTransform: 'capitalize',
     fontFamily: fonts.bodyMedium,
-    fontSize: 11,
+    fontSize: 12,
   },
   tabTextOn: { color: colors.accentBright },
-  fields: { marginBottom: spacing.xs },
+  fields: {
+    width: '100%',
+    marginBottom: spacing.xs,
+  },
   error: {
     color: colors.danger,
     marginBottom: spacing.sm,
     fontFamily: fonts.body,
-    fontSize: 11,
+    fontSize: 12,
+    width: '100%',
+  },
+  submitBtn: {
+    width: '100%',
+    alignSelf: 'stretch',
   },
 });

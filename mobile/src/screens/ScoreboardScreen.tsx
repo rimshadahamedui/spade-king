@@ -26,16 +26,13 @@ export function ScoreboardScreen() {
       seatIndex: p.seatIndex,
       totalScore: p.totalScore,
     }));
-    const maxScore = Math.max(...players.map((p) => p.totalScore));
-    const winnerIds = players.filter((p) => p.totalScore === maxScore).map((p) => p.userId);
     return {
       roomType: snapshot.roomType,
       totalRounds: snapshot.totalRounds,
       players,
-      winnerIds: finished ? winnerIds : undefined,
       scoreHistory: snapshot.scoreHistory ?? [],
     };
-  }, [snapshot, finished]);
+  }, [snapshot]);
 
   const pad = {
     paddingTop: Math.max(insets.top, 8),

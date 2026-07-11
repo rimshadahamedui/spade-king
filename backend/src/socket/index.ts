@@ -5,6 +5,7 @@ import { SOCKET_EVENTS } from '../constants';
 import { AuthService } from '../services/AuthService';
 import { roomService } from '../services/RoomService';
 import { logger } from '../utils/logger';
+import { setSocketIo } from './ioRegistry';
 import type { JwtPayload, RoomType, RoomVisibility } from '../types';
 
 interface AuthedSocket extends Socket {
@@ -362,6 +363,8 @@ export function createSocketServer(httpServer: HttpServer): Server {
   });
 
   startRoomJanitor(io);
+
+  setSocketIo(io);
 
   return io;
 }
