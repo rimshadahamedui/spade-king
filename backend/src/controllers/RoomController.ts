@@ -107,7 +107,7 @@ export class StatsController {
 
   leaderboard = async (_req: AuthedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const board = await matches.getLeaderboard();
+      const board = await matches.getLeaderboardByRoomTypes();
       res.json({ success: true, data: board });
     } catch (error) {
       next(error);

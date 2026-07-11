@@ -9,6 +9,8 @@ interface Props {
   snapshot: PrivateGameSnapshot;
   size?: Size;
   highlightRound?: number;
+  /** Show bid · tricks and points per round cell */
+  showBidTake?: boolean;
 }
 
 function playerName(player: GamePlayer) {
@@ -46,10 +48,22 @@ const METRICS = {
     padH: 4,
     rowPad: 6,
   },
+  largeBidTake: {
+    col: 46,
+    name: 88,
+    total: 44,
+    hdr: 11,
+    nameFs: 12,
+    ptFs: 10,
+    totalFs: 14,
+    padV: 6,
+    padH: 4,
+    rowPad: 6,
+  },
 } as const;
 
-export function ScoreGrid({ snapshot, size = 'compact', highlightRound }: Props) {
-  const m = METRICS[size];
+export function ScoreGrid({ snapshot, size = 'compact', highlightRound, showBidTake }: Props) {
+  const m = showBidTake && size === 'large' ? METRICS.largeBidTake : METRICS[size];
 
   const players = useMemo(
     () => [...snapshot.players].sort((a, b) => a.seatIndex - b.seatIndex),
@@ -57,11 +71,18 @@ export function ScoreGrid({ snapshot, size = 'compact', highlightRound }: Props)
   );
 
   const historyMap = useMemo(() => {
-    const map = new Map<string, Map<number, number>>();
+    const map = new Map<
+      string,
+      Map<number, { bid: number; tricksWon: number; points: number }>
+    >();
     for (const entry of snapshot.scoreHistory ?? []) {
       for (const s of entry.scores) {
         if (!map.has(s.userId)) map.set(s.userId, new Map());
-        map.get(s.userId)!.set(entry.round, s.points);
+        map.get(s.userId)!.set(entry.round, {
+          bid: s.bid,
+          tricksWon: s.tricksWon,
+          points: s.points,
+        });
       }
     }
     return map;
@@ -111,8 +132,40 @@ export function ScoreGrid({ snapshot, size = 'compact', highlightRound }: Props)
               {playerName(p)}
             </Text>
             {rounds.map((r) => {
-              const pts = byRound?.get(r) ?? null;
+              const round = byRound?.get(r) ?? null;
               const highlighted = highlightRound === r;
+              if (showBidTake) {
+                return (
+                  <View
+                    key={r}
+                    style={[
+                      styles.bidTakeCell,
+                      { width: m.col },
+                      highlighted && styles.ptHighlight,
+                    ]}
+                  >
+                    {round ? (
+                      <>
+                        <Text style={[styles.bidTakeLine, { fontSize: m.ptFs }]}>
+                          {round.bid}·{round.tricksWon}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.bidTakePts,
+                            { fontSize: m.ptFs - 1 },
+                            round.points >= 0 ? styles.ptPos : styles.ptNeg,
+                          ]}
+                        >
+                          {formatPts(round.points)}
+                        </Text>
+                      </>
+                    ) : (
+                      <Text style={[styles.ptCell, { fontSize: m.ptFs }]}>·</Text>
+                    )}
+                  </View>
+                );
+              }
+              const pts = round?.points ?? null;
               return (
                 <Text
                   key={r}
@@ -181,6 +234,22 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontFamily: fonts.bodyMedium,
     paddingHorizontal: 2,
+  },
+  bidTakeCell: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+    minHeight: 28,
+  },
+  bidTakeLine: {
+    color: colors.cream,
+    fontFamily: fonts.bodyBold,
+    textAlign: 'center',
+  },
+  bidTakePts: {
+    fontFamily: fonts.bodyMedium,
+    textAlign: 'center',
+    marginTop: 1,
   },
   ptHighlight: {
     backgroundColor: 'rgba(201, 162, 39, 0.12)',

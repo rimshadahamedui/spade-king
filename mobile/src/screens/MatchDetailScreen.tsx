@@ -29,6 +29,7 @@ export function MatchDetailScreen() {
         playedAt: string;
         userPlacement: number;
         userWon: boolean;
+        winners: string[];
         players: Array<{
           userId: string;
           username: string;
@@ -57,15 +58,17 @@ export function MatchDetailScreen() {
 
   const resultsData = useMemo(() => {
     if (!q.data) return null;
+    const players = q.data.players.map((p) => ({
+      userId: p.userId,
+      username: p.username,
+      seatIndex: p.seatIndex,
+      totalScore: p.totalScore,
+    }));
     return {
       roomType: q.data.roomType,
       totalRounds: q.data.totalRounds || q.data.rounds.length,
-      players: q.data.players.map((p) => ({
-        userId: p.userId,
-        username: p.username,
-        seatIndex: p.seatIndex,
-        totalScore: p.totalScore,
-      })),
+      players,
+      winnerIds: q.data.winners,
       scoreHistory: q.data.rounds.map((r) => ({
         round: r.roundNumber,
         scores: r.scores,

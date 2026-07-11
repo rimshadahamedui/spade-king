@@ -3,6 +3,7 @@ import {
   MatchHistoryModel,
   PlayerStatisticsModel,
   UserAchievementModel,
+  UserModel,
   ACHIEVEMENT_CATALOG,
   type IMatch,
 } from '../models';
@@ -183,5 +184,44 @@ export class MatchRepository {
       .sort({ gamesWon: -1, winPercentage: -1 })
       .limit(limit)
       .populate('userId', 'username');
+  }
+
+  async getLeaderboardByRoomTypes(limit = 30): Promise<
+    Record<RoomType, Array<{ userId: string; username: string; gamesWon: number }>>
+  > {
+    const result = { 3: [], 4: [], 5: [] } as Record<
+      RoomType,
+      Array<{ userId: string; username: string; gamesWon: number }>
+    >;
+
+    for (const roomType of [3, 4, 5] as RoomType[]) {
+      const entries = await MatchHistoryModel.aggregate<{
+        _id: Types.ObjectId;
+        gamesWon: number;
+      }>([
+        { $match: { won: true, roomType } },
+        { $group: { _id: '$userId', gamesWon: { $sum: 1 } } },
+        { $sort: { gamesWon: -1 } },
+        { $limit: limit },
+      ]);
+
+      if (entries.length === 0) {
+        result[roomType] = [];
+        continue;
+      }
+
+      const users = await UserModel.find({ _id: { $in: entries.map((e) => e._id) } }).select(
+        'username',
+      );
+      const nameById = new Map(users.map((u) => [u._id.toString(), u.username]));
+
+      result[roomType] = entries.map((e) => ({
+        userId: e._id.toString(),
+        username: nameById.get(e._id.toString()) ?? 'Player',
+        gamesWon: e.gamesWon,
+      }));
+    }
+
+    return result;
   }
 }

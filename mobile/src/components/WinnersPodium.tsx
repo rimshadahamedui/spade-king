@@ -19,10 +19,24 @@ const TROPHY = {
 
 interface Props {
   players: WinnerEntry[];
+  /** When set, only these players appear (match winners). */
+  winnerIds?: string[];
 }
 
-export function WinnersPodium({ players }: Props) {
-  const ranked = [...players].sort((a, b) => b.totalScore - a.totalScore);
+function resolveWinners(players: WinnerEntry[], winnerIds?: string[]): WinnerEntry[] {
+  if (winnerIds?.length) {
+    const idSet = new Set(winnerIds);
+    return players.filter((p) => idSet.has(p.userId));
+  }
+  if (!players.length) return [];
+  const max = Math.max(...players.map((p) => p.totalScore));
+  return players.filter((p) => p.totalScore === max);
+}
+
+export function WinnersPodium({ players, winnerIds }: Props) {
+  const ranked = [...resolveWinners(players, winnerIds)].sort(
+    (a, b) => b.totalScore - a.totalScore,
+  );
 
   return (
     <View style={styles.panel}>
@@ -34,8 +48,15 @@ export function WinnersPodium({ players }: Props) {
         bounces={false}
       >
         {ranked.map((p, idx) => {
-          const trophy =
-            idx === 0 ? TROPHY.gold : idx === 1 ? TROPHY.silver : idx === 2 ? TROPHY.bronze : null;
+          const topScore = ranked[0]?.totalScore ?? -Infinity;
+          const atTop = p.totalScore === topScore;
+          const trophy = atTop
+            ? TROPHY.gold
+            : idx === 1
+              ? TROPHY.silver
+              : idx === 2
+                ? TROPHY.bronze
+                : null;
 
           return (
             <View key={p.userId} style={[styles.row, idx === 0 && styles.rowFirst]}>

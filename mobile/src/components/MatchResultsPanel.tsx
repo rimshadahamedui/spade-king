@@ -9,6 +9,7 @@ export interface MatchResultsData {
   roomType: 3 | 4 | 5;
   totalRounds: number;
   players: WinnerEntry[];
+  winnerIds?: string[];
   scoreHistory: Array<{
     round: number;
     scores: Array<{ userId: string; bid: number; tricksWon: number; points: number }>;
@@ -20,6 +21,8 @@ interface Props {
   title?: string;
   kicker?: string;
   highlightRound?: number;
+  /** Show bid · tricks per round in scoreboard (default true for results) */
+  showBidTake?: boolean;
   footer?: React.ReactNode;
 }
 
@@ -57,7 +60,14 @@ function toSnapshot(data: MatchResultsData, highlightRound?: number): PrivateGam
   };
 }
 
-export function MatchResultsPanel({ data, title, kicker, highlightRound, footer }: Props) {
+export function MatchResultsPanel({
+  data,
+  title,
+  kicker,
+  highlightRound,
+  showBidTake = true,
+  footer,
+}: Props) {
   const { width } = useWindowDimensions();
   const stacked = width < 640;
   const snapshot = useMemo(
@@ -77,13 +87,21 @@ export function MatchResultsPanel({ data, title, kicker, highlightRound, footer 
       <View style={[styles.split, stacked && styles.splitStacked]}>
         <View style={[styles.scorePanel, stacked && styles.scorePanelStacked]}>
           <Text style={styles.panelTitle}>Scoreboard</Text>
+          {showBidTake ? (
+            <Text style={styles.panelHint}>Bid · tricks (points per round)</Text>
+          ) : null}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} bounces={false}>
-            <ScoreGrid snapshot={snapshot} size="large" highlightRound={highlightRound} />
+            <ScoreGrid
+              snapshot={snapshot}
+              size="large"
+              highlightRound={highlightRound}
+              showBidTake={showBidTake}
+            />
           </ScrollView>
         </View>
 
         <View style={[styles.winnersWrap, stacked && styles.winnersWrapStacked]}>
-          <WinnersPodium players={data.players} />
+          <WinnersPodium players={data.players} winnerIds={data.winnerIds} />
         </View>
       </View>
 
@@ -127,7 +145,7 @@ const styles = StyleSheet.create({
   },
   scorePanelStacked: {
     flex: 0,
-    maxHeight: 220,
+    maxHeight: 280,
   },
   panelTitle: {
     color: colors.textMuted,
@@ -137,6 +155,13 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     marginBottom: spacing.xs,
     textAlign: 'center',
+  },
+  panelHint: {
+    color: colors.textDim,
+    fontFamily: fonts.body,
+    fontSize: 9,
+    textAlign: 'center',
+    marginBottom: spacing.xs,
   },
   winnersWrap: {
     flex: 1,
