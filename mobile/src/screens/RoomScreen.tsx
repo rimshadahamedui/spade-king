@@ -1,4 +1,4 @@
-import React, { useCallback, useLayoutEffect, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -21,6 +21,7 @@ import { ScreenBackdrop } from '../components/ScreenBackdrop';
 import { emitAck, ensureSocketConnected, SOCKET_EVENTS } from '../services/socket';
 import { formatApiError } from '../utils/network';
 import { clearRoomSyncGuards } from '../utils/roomSyncGuards';
+import { allPlayersReady, countReadyPlayers } from '../utils/roomPhase';
 import { useIsPortrait } from '../hooks/useIsPortrait';
 import { useAuthStore } from '../store/authStore';
 import { useGameStore } from '../store/gameStore';
@@ -49,14 +50,18 @@ export function RoomScreen() {
 
   const isFull = !!room && room.players.length >= room.maxPlayers;
   const startApprovals = room?.startApprovals ?? [];
+  const startCount = countReadyPlayers(room?.players ?? [], startApprovals);
+  const everyoneReady = !!room && allPlayersReady(room);
   const hasConfirmedStart = !!user?.id && startApprovals.includes(user.id);
-  const startCount = startApprovals.length;
+  const resyncAttemptRef = useRef(0);
+
   const showStartOverlay =
     !!room &&
     room.phase === 'waiting' &&
     isFull &&
     countdown === null &&
-    !hasConfirmedStart;
+    !hasConfirmedStart &&
+    !everyoneReady;
 
   const countdownValue =
     countdown ?? (room?.phase === 'countdown' ? (room.countdownRemaining ?? null) : null);
@@ -64,6 +69,49 @@ export function RoomScreen() {
     !!room &&
     (room.phase === 'countdown' ||
       (countdownValue !== null && countdownValue !== undefined && countdownValue >= 0));
+
+  const startingSoon =
+    !!room &&
+    room.phase === 'waiting' &&
+    isFull &&
+    everyoneReady &&
+    countdown === null &&
+    !inCountdown;
+
+  useEffect(() => {
+    if (!startingSoon || !socketConnected) return;
+
+    const attempt = resyncAttemptRef.current + 1;
+    resyncAttemptRef.current = attempt;
+
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          await ensureSocketConnected();
+          const res = (await emitAck<{ success: boolean; data?: Room }>(
+            SOCKET_EVENTS.RECONNECT,
+            {},
+          )) as { success: boolean; data?: Room };
+          if (res?.success && res.data?.id) {
+            setRoom(res.data);
+            if (res.data.phase === 'countdown' && res.data.countdownRemaining != null) {
+              useGameStore.getState().setCountdown(res.data.countdownRemaining);
+            }
+          }
+        } catch {
+          /* ignore — next socket event may catch up */
+        }
+      })();
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [startingSoon, socketConnected, setRoom]);
+
+  useEffect(() => {
+    if (!everyoneReady || room?.phase !== 'waiting') {
+      resyncAttemptRef.current = 0;
+    }
+  }, [everyoneReady, room?.phase]);
 
   const inGame =
     !!room &&
@@ -106,6 +154,18 @@ export function RoomScreen() {
         <SafeAreaView style={[styles.safe, styles.center]} edges={[]}>
           <Text style={styles.title}>No active table</Text>
           <Button title="Back to Lounge" onPress={() => navigation.navigate('Lobby')} />
+        </SafeAreaView>
+      </ScreenBackdrop>
+    );
+  }
+
+  if (startingSoon) {
+    return (
+      <ScreenBackdrop>
+        <SafeAreaView style={[styles.safe, styles.center, pad]} edges={[]}>
+          <Text style={styles.kicker}>Table full</Text>
+          <Text style={styles.title}>Starting</Text>
+          <Text style={styles.sub}>Everyone&apos;s ready — dealing soon</Text>
         </SafeAreaView>
       </ScreenBackdrop>
     );
@@ -242,7 +302,9 @@ export function RoomScreen() {
                   </Text>
                 </View>
                 {hasConfirmedStart ? (
-                  <Text style={styles.startBarWait}>Waiting…</Text>
+                  <Text style={styles.startBarWait}>
+                    {everyoneReady ? 'Starting…' : 'Waiting…'}
+                  </Text>
                 ) : (
                   <Button
                     title={socketConnected ? 'Start' : 'Connecting…'}

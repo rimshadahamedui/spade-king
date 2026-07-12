@@ -1,18 +1,35 @@
 import type { Room } from '../models/types';
+import {
+  isStaleRoomUpdate,
+  mergeRoomPhase,
+  sanitizeStartApprovals,
+} from './roomPhase';
 
-/** Merge room broadcasts so partial updates do not wipe start votes or player list. */
+/** Merge room broadcasts so partial / out-of-order updates do not rewind lobby state. */
 export function mergeRoom(prev: Room | null, next: Room): Room {
-  if (!prev || prev.id !== next.id) return next;
+  if (!prev || prev.id !== next.id) {
+    return {
+      ...next,
+      startApprovals: sanitizeStartApprovals(next.players, next.startApprovals),
+    };
+  }
 
-  const players =
-    Array.isArray(next.players) ? next.players : prev.players;
+  if (isStaleRoomUpdate(prev, next)) {
+    return prev;
+  }
+
+  const players = Array.isArray(next.players) ? next.players : prev.players;
+  const startApprovals = sanitizeStartApprovals(
+    players,
+    next.startApprovals !== undefined ? next.startApprovals : (prev.startApprovals ?? []),
+  );
 
   return {
     ...prev,
     ...next,
+    phase: mergeRoomPhase(prev, { ...next, players }),
     players,
-    startApprovals:
-      next.startApprovals !== undefined ? next.startApprovals : (prev.startApprovals ?? []),
+    startApprovals,
     suspendApprovals:
       next.suspendApprovals !== undefined
         ? [...next.suspendApprovals]

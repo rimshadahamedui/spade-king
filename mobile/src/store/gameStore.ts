@@ -1,6 +1,20 @@
 import { create } from 'zustand';
 import type { PrivateGameSnapshot, Room, Card } from '../models/types';
 import { mergeRoom } from '../utils/mergeRoom';
+import { roomPhaseRank } from '../utils/roomPhase';
+
+function syncCountdown(
+  prevCountdown: number | null,
+  room: Room | null,
+): number | null {
+  if (!room) return null;
+  if (room.phase === 'countdown') {
+    return room.countdownRemaining != null ? room.countdownRemaining : prevCountdown;
+  }
+  if (room.phase === 'waiting') return null;
+  if (roomPhaseRank(room.phase) >= 10) return null;
+  return prevCountdown;
+}
 
 export interface ChatMessage {
   userId: string;
@@ -68,10 +82,7 @@ export const useGameStore = create<GameState>((set) => ({
   setRoom: (room) =>
     set((s) => {
       const merged = room && s.room ? mergeRoom(s.room, room) : room;
-      const countdown =
-        merged?.phase === 'countdown' && merged.countdownRemaining != null
-          ? merged.countdownRemaining
-          : s.countdown;
+      const countdown = syncCountdown(s.countdown, merged);
       return {
         room: merged,
         countdown,

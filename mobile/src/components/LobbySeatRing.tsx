@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { LayoutChangeEvent, StyleSheet, Text, View } from 'react-native';
 import type { RoomPlayer } from '../models/types';
+import { countReadyPlayers } from '../utils/roomPhase';
 import { colors, fonts } from '../theme';
 
 const SEAT_COLORS = ['#C9A227', '#2DB67A', '#5B8DEF', '#E85D5D', '#B388FF'];
@@ -53,6 +54,10 @@ export function LobbySeatRing({
   }, [players]);
 
   const approvalSet = useMemo(() => new Set(startApprovals), [startApprovals]);
+  const readyCount = useMemo(
+    () => countReadyPlayers(players, startApprovals),
+    [players, startApprovals],
+  );
 
   return (
     <View style={styles.container} onLayout={onLayout}>
@@ -60,9 +65,7 @@ export function LobbySeatRing({
         <View style={styles.centerLabel} pointerEvents="none">
           <Text style={styles.centerKicker}>{tableFull ? 'Start' : 'Seats'}</Text>
           <Text style={styles.centerCount}>
-            {tableFull
-              ? `${startApprovals.length}/${maxPlayers}`
-              : `${players.length}/${maxPlayers}`}
+            {tableFull ? `${readyCount}/${maxPlayers}` : `${players.length}/${maxPlayers}`}
           </Text>
         </View>
       )}

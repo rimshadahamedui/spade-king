@@ -398,7 +398,6 @@ export function useSocketBindings() {
       socket.on(SOCKET_EVENTS.END_TRICK, onEndTrick);
       socket.on(SOCKET_EVENTS.COUNTDOWN, (p: { remaining: number }) => {
         setError(null);
-        setCountdown(p.remaining);
         const current = useGameStore.getState().room;
         if (current) {
           setRoom({
@@ -406,6 +405,8 @@ export function useSocketBindings() {
             phase: 'countdown',
             countdownRemaining: p.remaining,
           });
+        } else {
+          setCountdown(p.remaining);
         }
       });
       socket.on(SOCKET_EVENTS.CHAT_MESSAGE, onChat);
@@ -417,11 +418,10 @@ export function useSocketBindings() {
       });
       socket.on(SOCKET_EVENTS.GAME_FINISHED, () => setCountdown(null));
       socket.on(SOCKET_EVENTS.PLAYER_RECONNECTED, (p: { room: Room }) => {
-        setRoom(p.room);
-        if (p.room.chat) setChat(p.room.chat);
+        onRoom(p.room);
       });
       socket.on(SOCKET_EVENTS.PLAYER_DISCONNECTED, (p: { room: Room }) => {
-        setRoom(p.room);
+        onRoom(p.room);
       });
       socket.on('connect', onConnect);
       socket.on('disconnect', onDisconnect);

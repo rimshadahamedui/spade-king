@@ -165,6 +165,7 @@ export class RoomService {
       isConnected: true,
     });
     live.startApprovals = [];
+    this.sanitizeStartApprovals(live);
     this.userToRoom.set(params.userId, live.roomId);
 
     const doc = await this.roomsRepo.findById(live.roomId);
@@ -192,6 +193,7 @@ export class RoomService {
     if (live.players.length < live.maxPlayers) {
       live.startApprovals = [];
     }
+    this.sanitizeStartApprovals(live);
     this.userToRoom.delete(userId);
 
     if (live.engine) {
@@ -296,6 +298,7 @@ export class RoomService {
     }
 
     live.startApprovals.push(userId);
+    this.sanitizeStartApprovals(live);
     this.touchActivity(live);
     return live;
   }
@@ -495,6 +498,11 @@ export class RoomService {
 
   getInactivityTtlMs(): number {
     return env.ROOM_IDLE_TTL_SECONDS * 1000;
+  }
+
+  private sanitizeStartApprovals(live: LiveRoom): void {
+    const seated = new Set(live.players.map((p) => p.userId));
+    live.startApprovals = live.startApprovals.filter((id) => seated.has(id));
   }
 
   private touchActivity(live: LiveRoom): void {

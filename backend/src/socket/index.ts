@@ -194,13 +194,15 @@ export function createSocketServer(httpServer: HttpServer): Server {
     socket.on(SOCKET_EVENTS.CONFIRM_START, async (_payload, ack) => {
       try {
         const room = roomService.confirmStart(user.sub);
-        io.to(room.roomId).emit(SOCKET_EVENTS.ROOM_UPDATED, serializeRoom(room));
 
         if (roomService.allStartConfirmed(room)) {
           await startCountdown(io, room.roomId);
+        } else {
+          io.to(room.roomId).emit(SOCKET_EVENTS.ROOM_UPDATED, serializeRoom(room));
         }
 
-        if (typeof ack === 'function') ack({ success: true, data: serializeRoom(room) });
+        const live = roomService.getLiveRoom(room.roomId) ?? room;
+        if (typeof ack === 'function') ack({ success: true, data: serializeRoom(live) });
       } catch (error) {
         emitError(socket, error, ack);
       }
@@ -209,13 +211,15 @@ export function createSocketServer(httpServer: HttpServer): Server {
     socket.on(SOCKET_EVENTS.PLAYER_READY, async (_payload, ack) => {
       try {
         const room = roomService.confirmStart(user.sub);
-        io.to(room.roomId).emit(SOCKET_EVENTS.ROOM_UPDATED, serializeRoom(room));
 
         if (roomService.allStartConfirmed(room)) {
           await startCountdown(io, room.roomId);
+        } else {
+          io.to(room.roomId).emit(SOCKET_EVENTS.ROOM_UPDATED, serializeRoom(room));
         }
 
-        if (typeof ack === 'function') ack({ success: true, data: serializeRoom(room) });
+        const live = roomService.getLiveRoom(room.roomId) ?? room;
+        if (typeof ack === 'function') ack({ success: true, data: serializeRoom(live) });
       } catch (error) {
         emitError(socket, error, ack);
       }
