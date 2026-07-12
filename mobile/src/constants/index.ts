@@ -18,6 +18,7 @@ export const SOCKET_EVENTS = {
   HEARTBEAT: 'heartbeat',
   RECONNECT: 'reconnect',
   DELETE_ROOM: 'deleteRoom',
+  ADMIN_PURGE_ROOMS: 'adminPurgeRooms',
   ROOM_UPDATED: 'roomUpdated',
   GAME_START: 'gameStart',
   SHUFFLE: 'shuffle',

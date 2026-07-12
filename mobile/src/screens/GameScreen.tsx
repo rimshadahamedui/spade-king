@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert,
   InteractionManager,
   LayoutChangeEvent,
   Pressable,
@@ -32,6 +31,9 @@ import { emitAck, SOCKET_EVENTS } from '../services/socket';
 import { adminApi } from '../services/api';
 import { useAuthStore } from '../store/authStore';
 import { formatApiError } from '../utils/network';
+import { alertMessage } from '../utils/confirm';
+import { navigateToLobby } from '../navigation/navigationRef';
+import { queryClient } from '../queryClient';
 import { useGameStore } from '../store/gameStore';
 import type { RootStackParamList } from '../navigation/types';
 import type { Room } from '../models/types';
@@ -62,6 +64,7 @@ export function GameScreen() {
   const [presetChatBusy, setPresetChatBusy] = useState(false);
   const [suspendDialogOpen, setSuspendDialogOpen] = useState(false);
   const [suspendBusy, setSuspendBusy] = useState(false);
+  const [purgeDialogOpen, setPurgeDialogOpen] = useState(false);
   const [adminBusy, setAdminBusy] = useState(false);
   const insets = useSafeAreaInsets();
   const isPortrait = useIsPortrait();
@@ -260,31 +263,38 @@ export function GameScreen() {
   }, [suspendBusy]);
 
   const purgeAllRooms = useCallback(() => {
-    Alert.alert(
-      'Clear all rooms?',
-      'Every active table will close and all players will return to the lobby.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear rooms',
-          style: 'destructive',
-          onPress: () => {
-            void (async () => {
-              setAdminBusy(true);
-              try {
-                const res = await adminApi.purgeRooms();
-                const closed = res.data.data?.closed ?? 0;
-                Alert.alert('Rooms cleared', `${closed} room(s) closed.`);
-              } catch (e) {
-                Alert.alert('Failed', formatApiError(e));
-              } finally {
-                setAdminBusy(false);
-              }
-            })();
-          },
-        },
-      ],
-    );
+    setPurgeDialogOpen(true);
+  }, []);
+
+  const dismissPurgeDialog = useCallback(() => {
+    if (adminBusy) return;
+    setPurgeDialogOpen(false);
+  }, [adminBusy]);
+
+  const submitPurgeAllRooms = useCallback(async () => {
+    setAdminBusy(true);
+    try {
+      let closed = 0;
+      try {
+        const res = (await emitAck<{ success: boolean; data?: { closed?: number } }>(
+          SOCKET_EVENTS.ADMIN_PURGE_ROOMS,
+          {},
+        )) as { success: boolean; data?: { closed?: number } };
+        closed = res.data?.closed ?? 0;
+      } catch {
+        const res = await adminApi.purgeRooms();
+        closed = res.data.data?.closed ?? 0;
+      }
+      setPurgeDialogOpen(false);
+      useGameStore.getState().reset();
+      navigateToLobby();
+      void queryClient.invalidateQueries({ queryKey: ['publicRooms'] });
+      alertMessage('Rooms cleared', `${closed} room(s) closed.`);
+    } catch (e) {
+      alertMessage('Failed', formatApiError(e));
+    } finally {
+      setAdminBusy(false);
+    }
   }, []);
 
   const sendPresetChat = useCallback(async (message: string) => {
@@ -628,6 +638,18 @@ export function GameScreen() {
           busy={suspendBusy}
           onConfirm={() => void submitSuspendVote()}
           onCancel={dismissSuspendDialog}
+        />
+
+        <ConfirmOverlay
+          visible={purgeDialogOpen}
+          title="Clear all rooms?"
+          message="Every active table will close and all players will return to the lobby."
+          confirmText="Clear rooms"
+          cancelText="Cancel"
+          destructive
+          busy={adminBusy}
+          onConfirm={() => void submitPurgeAllRooms()}
+          onCancel={dismissPurgeDialog}
         />
       </SafeAreaView>
     </ScreenBackdrop>

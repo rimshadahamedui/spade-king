@@ -78,6 +78,7 @@ export const SOCKET_EVENTS = {
   JOIN_ROOM: 'joinRoom',
   LEAVE_ROOM: 'leaveRoom',
   DELETE_ROOM: 'deleteRoom',
+  ADMIN_PURGE_ROOMS: 'adminPurgeRooms',
   APPROVE_NEXT_ROUND: 'approveNextRound',
   REQUEST_SUSPEND: 'requestSuspend',
   CONFIRM_START: 'confirmStart',

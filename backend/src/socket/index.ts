@@ -1,7 +1,8 @@
 import { Server as HttpServer } from 'http';
 import { Server, Socket } from 'socket.io';
 import { env } from '../config/env';
-import { SOCKET_EVENTS } from '../constants';
+import { ADMIN_EMAIL, SOCKET_EVENTS } from '../constants';
+import { UserModel } from '../models';
 import { AuthService } from '../services/AuthService';
 import { roomService } from '../services/RoomService';
 import { logger } from '../utils/logger';
@@ -169,6 +170,22 @@ export function createSocketServer(httpServer: HttpServer): Server {
         io.to(roomId).emit(SOCKET_EVENTS.ROOM_CLOSED, { roomId });
         await socket.leave(roomId);
         if (typeof ack === 'function') ack({ success: true });
+      } catch (error) {
+        emitError(socket, error, ack);
+      }
+    });
+
+    socket.on(SOCKET_EVENTS.ADMIN_PURGE_ROOMS, async (_payload, ack) => {
+      try {
+        const doc = await UserModel.findById(user.sub).select('email').lean();
+        const email = doc?.email?.trim().toLowerCase();
+        if (email !== ADMIN_EMAIL) throw new Error('Forbidden');
+
+        const roomIds = await roomService.purgeAllRooms();
+        for (const roomId of roomIds) {
+          io.to(roomId).emit(SOCKET_EVENTS.ROOM_CLOSED, { roomId, reason: 'admin_purge' });
+        }
+        if (typeof ack === 'function') ack({ success: true, data: { closed: roomIds.length } });
       } catch (error) {
         emitError(socket, error, ack);
       }
