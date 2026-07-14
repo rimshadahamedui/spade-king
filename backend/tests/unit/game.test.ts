@@ -153,4 +153,34 @@ describe('ScoreEngine', () => {
     ]);
     expect(ScoreEngine.determineWinners(totals).sort()).toEqual(['a', 'b']);
   });
+
+  it('detects 1st/2nd tie for tiebreaker rounds', () => {
+    expect(
+      ScoreEngine.isTopTwoTied(
+        new Map([
+          ['a', 100],
+          ['b', 100],
+          ['c', 50],
+        ]),
+      ),
+    ).toBe(true);
+    expect(
+      ScoreEngine.isTopTwoTied(
+        new Map([
+          ['a', 100],
+          ['b', 90],
+          ['c', 90],
+        ]),
+      ),
+    ).toBe(false);
+    expect(
+      ScoreEngine.isTopTwoTied(
+        new Map([
+          ['a', 100],
+          ['b', 100],
+          ['c', 100],
+        ]),
+      ),
+    ).toBe(true);
+  });
 });

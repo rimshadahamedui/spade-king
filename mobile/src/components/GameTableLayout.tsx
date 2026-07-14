@@ -78,6 +78,7 @@ export function GameTableLayout({
         {mode === 'full' ? renderBubble(player) : null}
         <PlayerAvatar
           username={player.username}
+          avatarId={player.avatarId}
           seatIndex={player.seatIndex}
           bid={showBidding || showPlayStats ? player.bid : null}
           tricksWon={showPlayStats ? player.tricksWon : undefined}

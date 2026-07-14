@@ -8,6 +8,7 @@ export interface WinnerEntry {
   userId: string;
   username: string;
   seatIndex?: number;
+  avatarId?: number | null;
   totalScore: number;
 }
 
@@ -43,7 +44,12 @@ export function WinnersPodium({ players, topCount = 3 }: Props) {
                 ) : (
                   <Text style={styles.plainRank}>#{idx + 1}</Text>
                 )}
-                <PlayerMiniAvatar username={p.username} seatIndex={p.seatIndex ?? idx} size={40} />
+                <PlayerMiniAvatar
+                  username={p.username}
+                  avatarId={p.avatarId}
+                  seatIndex={p.seatIndex ?? idx}
+                  size={40}
+                />
                 <Text style={styles.name} numberOfLines={1}>
                   {p.username}
                 </Text>

@@ -1,8 +1,11 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../store/authStore';
+import type { RootStackParamList } from '../navigation/types';
 import { colors, fonts, radii, spacing } from '../theme';
 
 interface ButtonProps {
@@ -30,6 +33,7 @@ interface OverlayProps {
 
 /** In-tree dropdown (avoids iOS native Modal crashes). Render at screen root. */
 export function UserMenuOverlay({ visible, onClose }: OverlayProps) {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const insets = useSafeAreaInsets();
@@ -43,6 +47,11 @@ export function UserMenuOverlay({ visible, onClose }: OverlayProps) {
   const handleLogout = () => {
     onClose();
     void logout();
+  };
+
+  const openProfile = () => {
+    onClose();
+    navigation.navigate('Profile');
   };
 
   return (
@@ -66,6 +75,15 @@ export function UserMenuOverlay({ visible, onClose }: OverlayProps) {
           {displayName}
         </Text>
         <View style={styles.divider} />
+        {!user?.isGuest ? (
+          <Pressable
+            onPress={openProfile}
+            style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}
+          >
+            <Ionicons name="person-outline" size={16} color={colors.cream} />
+            <Text style={styles.menuItemText}>Profile</Text>
+          </Pressable>
+        ) : null}
         <Pressable
           onPress={handleLogout}
           style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}

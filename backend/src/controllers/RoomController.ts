@@ -58,6 +58,7 @@ export class RoomController {
           players: r.players,
           maxPlayers: r.maxPlayers,
           phase: r.phase,
+          status: r.status,
         })),
       });
     } catch (error) {
@@ -130,9 +131,12 @@ export class StatsController {
     }
   };
 
-  leaderboard = async (_req: AuthedRequest, res: Response, next: NextFunction): Promise<void> => {
+  leaderboard = async (req: AuthedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const board = await matches.getLeaderboard();
+      const raw = String(req.query.period ?? 'all').toLowerCase();
+      const period =
+        raw === 'monthly' || raw === 'high' ? (raw as 'monthly' | 'high') : 'all';
+      const board = await matches.getLeaderboard(period);
       res.json({ success: true, data: board });
     } catch (error) {
       next(error);

@@ -9,6 +9,7 @@ export interface IUser extends Document {
   provider: AuthProvider;
   providerId?: string;
   avatarUrl?: string;
+  avatarId?: number;
   isGuest: boolean;
   friends: Types.ObjectId[];
   createdAt: Date;
@@ -27,6 +28,7 @@ const UserSchema = new Schema<IUser>(
     },
     providerId: { type: String, index: true },
     avatarUrl: { type: String },
+    avatarId: { type: Number, min: 1, max: 8 },
     isGuest: { type: Boolean, default: false },
     friends: [{ type: Schema.Types.ObjectId, ref: 'User' }],
   },

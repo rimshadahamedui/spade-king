@@ -8,7 +8,7 @@ import {
   type IMatch,
 } from '../models';
 import type { RoomType } from '../types';
-import type { Types } from 'mongoose';
+import { Types } from 'mongoose';
 
 export class MatchRepository {
   async create(data: {
@@ -222,20 +222,287 @@ export class MatchRepository {
     return user?.username ?? null;
   }
 
-  async getLeaderboard(limit = 50): Promise<
-    Array<{ userId: string; username: string; gamesWon: number }>
+  async propagateUsername(userId: string, username: string): Promise<void> {
+    const oid = new Types.ObjectId(userId);
+    await MatchModel.updateMany(
+      { 'players.userId': oid },
+      { $set: { 'players.$[p].username': username } },
+      { arrayFilters: [{ 'p.userId': oid }] },
+    );
+  }
+
+  async getLeaderboard(
+    period: 'all' | 'monthly' | 'high' = 'all',
+    limit = 50,
+  ): Promise<
+    Array<{
+      userId: string;
+      username: string;
+      gamesWon: number;
+      highScore?: number;
+      avatarId?: number | null;
+      rank: number;
+    }>
+  > {
+    if (period === 'monthly') return this.getMonthlyLeaderboard(limit);
+    if (period === 'high') return this.getHighScorersLeaderboard(limit);
+    return this.getAllTimeLeaderboard(limit);
+  }
+
+  private async getAllTimeLeaderboard(limit = 50): Promise<
+    Array<{ userId: string; username: string; gamesWon: number; avatarId?: number | null; rank: number }>
   > {
     const rows = await PlayerStatisticsModel.find({ gamesWon: { $gt: 0 } })
-      .sort({ gamesWon: -1, winPercentage: -1 })
-      .limit(limit)
-      .populate('userId', 'username');
+      .populate('userId', 'username avatarId')
+      .lean();
 
-    return rows.map((row) => {
-      const user = row.userId as unknown as { _id: { toString(): string }; username?: string };
+    const winTimelines = await MatchHistoryModel.aggregate<{
+      _id: Types.ObjectId;
+      winDates: Date[];
+    }>([
+      { $match: { won: true } },
+      { $sort: { playedAt: 1 } },
+      { $group: { _id: '$userId', winDates: { $push: '$playedAt' } } },
+    ]);
+
+    const winDatesByUser = new Map(
+      winTimelines.map((row) => [row._id.toString(), row.winDates] as const),
+    );
+
+    type Entry = {
+      userId: string;
+      username: string;
+      gamesWon: number;
+      avatarId?: number | null;
+      reachedAt: number;
+    };
+
+    const entries: Entry[] = rows.map((row) => {
+      const user = row.userId as unknown as {
+        _id: { toString(): string };
+        username?: string;
+        avatarId?: number;
+      };
+      const userId = user._id.toString();
+      const winDates = winDatesByUser.get(userId) ?? [];
+      const milestoneIndex = Math.max(0, row.gamesWon - 1);
+      const reachedAt = winDates[milestoneIndex]?.getTime() ?? winDates[0]?.getTime() ?? 0;
+
       return {
-        userId: user._id.toString(),
+        userId,
         username: user.username ?? 'Player',
         gamesWon: row.gamesWon,
+        avatarId: user.avatarId ?? null,
+        reachedAt,
+      };
+    });
+
+    entries.sort((a, b) => {
+      if (b.gamesWon !== a.gamesWon) return b.gamesWon - a.gamesWon;
+      return a.reachedAt - b.reachedAt;
+    });
+
+    return this.assignWinRanks(entries, limit);
+  }
+
+  /** Wins counted only from matches played in the current calendar month (UTC). */
+  private async getMonthlyLeaderboard(limit = 50): Promise<
+    Array<{ userId: string; username: string; gamesWon: number; avatarId?: number | null; rank: number }>
+  > {
+    const now = new Date();
+    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+
+    const winTimelines = await MatchHistoryModel.aggregate<{
+      _id: Types.ObjectId;
+      winDates: Date[];
+      gamesWon: number;
+    }>([
+      { $match: { won: true, playedAt: { $gte: monthStart, $lt: nextMonth } } },
+      { $sort: { playedAt: 1 } },
+      {
+        $group: {
+          _id: '$userId',
+          winDates: { $push: '$playedAt' },
+          gamesWon: { $sum: 1 },
+        },
+      },
+      { $match: { gamesWon: { $gt: 0 } } },
+    ]);
+
+    if (winTimelines.length === 0) return [];
+
+    const users = await UserModel.find({
+      _id: { $in: winTimelines.map((e) => e._id) },
+    }).select('username avatarId');
+    const userById = new Map(
+      users.map((u) => [
+        u._id.toString(),
+        { username: u.username, avatarId: u.avatarId ?? null },
+      ]),
+    );
+
+    type Entry = {
+      userId: string;
+      username: string;
+      gamesWon: number;
+      avatarId?: number | null;
+      reachedAt: number;
+    };
+
+    const entries: Entry[] = winTimelines.map((row) => {
+      const userId = row._id.toString();
+      const profile = userById.get(userId);
+      const milestoneIndex = Math.max(0, row.gamesWon - 1);
+      const reachedAt =
+        row.winDates[milestoneIndex]?.getTime() ?? row.winDates[0]?.getTime() ?? 0;
+      return {
+        userId,
+        username: profile?.username ?? 'Player',
+        gamesWon: row.gamesWon,
+        avatarId: profile?.avatarId ?? null,
+        reachedAt,
+      };
+    });
+
+    entries.sort((a, b) => {
+      if (b.gamesWon !== a.gamesWon) return b.gamesWon - a.gamesWon;
+      return a.reachedAt - b.reachedAt;
+    });
+
+    return this.assignWinRanks(entries, limit);
+  }
+
+  /** Highest single-match score across all room types. */
+  private async getHighScorersLeaderboard(limit = 50): Promise<
+    Array<{
+      userId: string;
+      username: string;
+      gamesWon: number;
+      highScore: number;
+      avatarId?: number | null;
+      rank: number;
+    }>
+  > {
+    const source = await MatchHistoryModel.aggregate<{
+      _id: Types.ObjectId;
+      highScore: number;
+      reachedAt: Date;
+    }>([
+      {
+        $group: {
+          _id: '$userId',
+          highScore: { $max: '$finalScore' },
+        },
+      },
+      {
+        $lookup: {
+          from: 'matchhistories',
+          let: { uid: '$_id', hs: '$highScore' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [{ $eq: ['$userId', '$$uid'] }, { $eq: ['$finalScore', '$$hs'] }],
+                },
+              },
+            },
+            { $sort: { playedAt: 1 } },
+            { $limit: 1 },
+            { $project: { playedAt: 1 } },
+          ],
+          as: 'firstHit',
+        },
+      },
+      {
+        $project: {
+          highScore: 1,
+          reachedAt: { $arrayElemAt: ['$firstHit.playedAt', 0] },
+        },
+      },
+      { $match: { highScore: { $gt: Number.NEGATIVE_INFINITY } } },
+    ]);
+
+    if (source.length === 0) return [];
+
+    const users = await UserModel.find({
+      _id: { $in: source.map((e) => e._id) },
+    }).select('username avatarId');
+    const userById = new Map(
+      users.map((u) => [
+        u._id.toString(),
+        { username: u.username, avatarId: u.avatarId ?? null },
+      ]),
+    );
+
+    type Entry = {
+      userId: string;
+      username: string;
+      highScore: number;
+      avatarId?: number | null;
+      reachedAt: number;
+    };
+
+    const entries: Entry[] = source.map((row) => {
+      const userId = row._id.toString();
+      const profile = userById.get(userId);
+      return {
+        userId,
+        username: profile?.username ?? 'Player',
+        highScore: row.highScore,
+        avatarId: profile?.avatarId ?? null,
+        reachedAt: row.reachedAt ? new Date(row.reachedAt).getTime() : 0,
+      };
+    });
+
+    entries.sort((a, b) => {
+      if (b.highScore !== a.highScore) return b.highScore - a.highScore;
+      return a.reachedAt - b.reachedAt;
+    });
+
+    let rank = 1;
+    return entries.slice(0, limit).map((entry, index) => {
+      if (index > 0 && entry.highScore < entries[index - 1]!.highScore) {
+        rank = index + 1;
+      }
+      return {
+        userId: entry.userId,
+        username: entry.username,
+        gamesWon: 0,
+        highScore: entry.highScore,
+        avatarId: entry.avatarId,
+        rank,
+      };
+    });
+  }
+
+  private assignWinRanks(
+    entries: Array<{
+      userId: string;
+      username: string;
+      gamesWon: number;
+      avatarId?: number | null;
+      reachedAt: number;
+    }>,
+    limit: number,
+  ): Array<{
+    userId: string;
+    username: string;
+    gamesWon: number;
+    avatarId?: number | null;
+    rank: number;
+  }> {
+    let rank = 1;
+    return entries.slice(0, limit).map((entry, index) => {
+      if (index > 0 && entry.gamesWon < entries[index - 1]!.gamesWon) {
+        rank = index + 1;
+      }
+      return {
+        userId: entry.userId,
+        username: entry.username,
+        gamesWon: entry.gamesWon,
+        avatarId: entry.avatarId,
+        rank,
       };
     });
   }

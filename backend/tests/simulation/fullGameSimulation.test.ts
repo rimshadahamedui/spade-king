@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ROOM_MODE_CONFIG } from '../../src/constants';
-import { RuleEngine } from '../../src/game';
+import { RuleEngine, ScoreEngine } from '../../src/game';
 import type { RoomType } from '../../src/types';
 import {
   advanceToBidding,
@@ -23,12 +23,18 @@ describe('Full match simulation (3 / 4 / 5 player)', () => {
   for (const roomType of ROOM_TYPES) {
     describe(`${roomType}-player mode`, () => {
       for (const seed of [1, 7, 13, 42, 99, 123, 256, 512]) {
-        it(`completes all 13 rounds without errors (seed ${seed})`, () => {
+        it(`completes match without errors (seed ${seed})`, () => {
           const engine = simulateFullMatch(roomType, seed);
           expect(engine.getPhase()).toBe('finished');
-          expect(engine.getRound()).toBe(13);
+          expect(engine.getRound()).toBeGreaterThanOrEqual(13);
+          expect(engine.getRound()).toBe(engine.getTotalRounds());
 
           const totals = engine.getTotals();
+          const scores = Object.values(totals).sort((a, b) => b - a);
+          if (scores.length >= 2) {
+            expect(scores[0]).not.toBe(scores[1]);
+          }
+
           const players = engine.getPlayers();
           expect(Object.keys(totals)).toHaveLength(roomType);
           for (const p of players) {

@@ -48,7 +48,7 @@ export type GameEvent =
 export interface GameEngineOptions {
   roomId: string;
   roomType: RoomType;
-  players: Array<{ userId: string; username: string; seatIndex: number }>;
+  players: Array<{ userId: string; username: string; seatIndex: number; avatarId?: number }>;
   /** Initial shuffler seat; defaults to 0 */
   shufflerSeatIndex?: number;
   rng?: () => number;
@@ -61,8 +61,9 @@ export interface GameEngineOptions {
 export class GameEngine {
   readonly roomId: string;
   readonly roomType: RoomType;
-  readonly totalRounds = TOTAL_ROUNDS;
   readonly minTotalBid: number;
+
+  private scheduledTotalRounds = TOTAL_ROUNDS;
 
   private phase: RoomPhase = 'waiting';
   private round = 0;
@@ -105,6 +106,7 @@ export class GameEngine {
         userId: p.userId,
         username: p.username,
         seatIndex: p.seatIndex,
+        avatarId: p.avatarId,
         hand: [],
         bid: null,
         tricksWon: 0,
@@ -130,6 +132,10 @@ export class GameEngine {
     return this.round;
   }
 
+  getTotalRounds(): number {
+    return this.scheduledTotalRounds;
+  }
+
   startGame(): void {
     if (this.phase !== 'waiting' && this.phase !== 'countdown') {
       throw new Error('Game already started');
@@ -141,7 +147,7 @@ export class GameEngine {
   /** Starts the next deal cycle (called at game start and after each round). */
   beginRound(): void {
     this.round += 1;
-    if (this.round > this.totalRounds) {
+    if (this.round > this.scheduledTotalRounds) {
       this.finishGame();
       return;
     }
@@ -535,6 +541,11 @@ export class GameEngine {
     this.setPhase('scoreboard');
     this.emit({ type: 'roundScore', scores, round: this.round });
 
+    const totals = new Map(this.players.map((p) => [p.userId, p.totalScore]));
+    if (this.round >= TOTAL_ROUNDS && ScoreEngine.isTopTwoTied(totals)) {
+      this.scheduledTotalRounds = this.round + 1;
+    }
+
     this.shufflerSeatIndex = (this.shufflerSeatIndex + 1) % this.players.length;
     this.lastTrickWinner = null;
   }
@@ -555,7 +566,17 @@ export class GameEngine {
     this.roundApprovals.clear();
     this.scoreboardEndsAt = null;
 
-    if (this.round >= this.totalRounds) {
+    const totals = new Map(this.players.map((p) => [p.userId, p.totalScore]));
+    const topTwoTied = ScoreEngine.isTopTwoTied(totals);
+
+    if (this.round >= TOTAL_ROUNDS && topTwoTied) {
+      this.scheduledTotalRounds = this.round + 1;
+      this.emit({ type: 'nextRound', round: this.round + 1 });
+      this.beginRound();
+      return;
+    }
+
+    if (this.round >= this.scheduledTotalRounds) {
       this.finishGame();
       return;
     }
@@ -585,6 +606,16 @@ export class GameEngine {
     player.isConnected = true;
   }
 
+  updatePlayerUsername(userId: string, username: string): void {
+    const player = this.players.find((p) => p.userId === userId);
+    if (player) player.username = username;
+  }
+
+  updatePlayerAvatar(userId: string, avatarId: number): void {
+    const player = this.players.find((p) => p.userId === userId);
+    if (player) player.avatarId = avatarId;
+  }
+
   getPrivateSnapshot(userId: string): PrivateGameSnapshot {
     const me = this.requirePlayer(userId);
     const reshuffleReasons = RuleEngine.getHandReshuffleReasons(me.hand, this.allSpadesInDeck);
@@ -606,7 +637,7 @@ export class GameEngine {
       roomType: this.roomType,
       phase: this.phase,
       round: this.round,
-      totalRounds: this.totalRounds,
+      totalRounds: this.scheduledTotalRounds,
       shufflerSeatIndex: this.shufflerSeatIndex,
       consecutiveReshuffles: this.consecutiveReshuffles,
       currentTurnSeatIndex: this.currentTurnSeatIndex,
@@ -652,6 +683,7 @@ export class GameEngine {
       userId: p.userId,
       username: p.username,
       seatIndex: p.seatIndex,
+      avatarId: p.avatarId,
       handCount: p.hand.length,
       bid: p.bid,
       tricksWon: p.tricksWon,

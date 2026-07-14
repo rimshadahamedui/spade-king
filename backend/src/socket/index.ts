@@ -21,8 +21,10 @@ const reshuffleCheckTimers = new Map<string, NodeJS.Timeout>();
 const countdownRooms = new Set<string>();
 const countdownRemaining = new Map<string, number>();
 const engineBroadcastAttached = new Set<string>();
+const finishedRoomTimers = new Map<string, NodeJS.Timeout>();
 const SCOREBOARD_AUTO_MS = 10_000;
 const RESHUFFLE_CHECK_AUTO_MS = 5_000;
+const FINISHED_ROOM_CLOSE_MS = 10_000;
 
 function clearScoreboardTimer(roomId: string): void {
   const timer = scoreboardTimers.get(roomId);
@@ -68,6 +70,35 @@ function scheduleScoreboardAdvance(io: Server, roomId: string): void {
   scoreboardTimers.set(roomId, timer);
 }
 
+function clearFinishedRoomTimer(roomId: string): void {
+  const timer = finishedRoomTimers.get(roomId);
+  if (timer) clearTimeout(timer);
+  finishedRoomTimers.delete(roomId);
+}
+
+function resolvedRoomPhase(room: NonNullable<ReturnType<typeof roomService.getLiveRoom>>): string {
+  return room.engine?.getPhase() ?? room.phase;
+}
+
+async function closeFinishedRoom(io: Server, roomId: string): Promise<string | null> {
+  clearScoreboardTimer(roomId);
+  clearFinishedRoomTimer(roomId);
+  const closedId = await roomService.teardownFinishedRoom(roomId);
+  if (closedId) {
+    io.to(closedId).emit(SOCKET_EVENTS.ROOM_CLOSED, { roomId: closedId, reason: 'finished' });
+  }
+  return closedId;
+}
+
+function scheduleFinishedRoomClose(io: Server, roomId: string): void {
+  if (finishedRoomTimers.has(roomId)) return;
+  const timer = setTimeout(() => {
+    finishedRoomTimers.delete(roomId);
+    void closeFinishedRoom(io, roomId);
+  }, FINISHED_ROOM_CLOSE_MS);
+  finishedRoomTimers.set(roomId, timer);
+}
+
 export function createSocketServer(httpServer: HttpServer): Server {
   const io = new Server(httpServer, {
     cors: { origin: env.CORS_ORIGIN === '*' ? true : env.CORS_ORIGIN.split(',') },
@@ -96,12 +127,27 @@ export function createSocketServer(httpServer: HttpServer): Server {
     roomService.bindSocket(user.sub, socket.id);
     const existing = roomService.getRoomByUser(user.sub);
     if (existing) {
-      void socket.join(existing.roomId);
-      emitRoomSession(socket, existing, user.sub);
-      io.to(existing.roomId).emit(SOCKET_EVENTS.PLAYER_RECONNECTED, {
-        userId: user.sub,
-        room: serializeRoom(existing),
-      });
+      if (resolvedRoomPhase(existing) === 'finished') {
+        void closeFinishedRoom(io, existing.roomId);
+      } else {
+        void socket.join(existing.roomId);
+        emitRoomSession(socket, existing, user.sub);
+        io.to(existing.roomId).emit(SOCKET_EVENTS.PLAYER_RECONNECTED, {
+          userId: user.sub,
+          room: serializeRoom(existing),
+        });
+      }
+    } else {
+      const watching = roomService.getRoomBySpectator(user.sub);
+      if (watching) {
+        if (resolvedRoomPhase(watching) === 'finished') {
+          void closeFinishedRoom(io, watching.roomId);
+        } else {
+          roomService.bindSpectatorSocket(user.sub, socket.id);
+          void socket.join(watching.roomId);
+          emitSpectatorSession(socket, watching, user.sub);
+        }
+      }
     }
 
     socket.on(SOCKET_EVENTS.CREATE_ROOM, async (payload, ack) => {
@@ -152,6 +198,39 @@ export function createSocketServer(httpServer: HttpServer): Server {
         const before = roomService.getRoomByUser(user.sub);
         const roomId = before?.roomId;
         const room = await roomService.leaveRoom(user.sub);
+        if (roomId) await socket.leave(roomId);
+        if (room) {
+          io.to(room.roomId).emit(SOCKET_EVENTS.ROOM_UPDATED, serializeRoom(room));
+        }
+        if (typeof ack === 'function') ack({ success: true });
+      } catch (error) {
+        emitError(socket, error, ack);
+      }
+    });
+
+    socket.on(SOCKET_EVENTS.WATCH_ROOM, async (payload, ack) => {
+      try {
+        const room = await roomService.watchRoom({
+          inviteCode: payload?.inviteCode,
+          roomId: payload?.roomId,
+          userId: user.sub,
+          username: user.username,
+        });
+        roomService.bindSpectatorSocket(user.sub, socket.id);
+        await socket.join(room.roomId);
+        const data = spectatorSessionForUser(room, user.sub);
+        io.to(room.roomId).emit(SOCKET_EVENTS.ROOM_UPDATED, serializeRoom(room));
+        if (typeof ack === 'function') ack({ success: true, data });
+      } catch (error) {
+        emitError(socket, error, ack);
+      }
+    });
+
+    socket.on(SOCKET_EVENTS.LEAVE_WATCH, async (_payload, ack) => {
+      try {
+        const before = roomService.getRoomBySpectator(user.sub);
+        const roomId = before?.roomId;
+        const room = await roomService.leaveWatch(user.sub);
         if (roomId) await socket.leave(roomId);
         if (room) {
           io.to(room.roomId).emit(SOCKET_EVENTS.ROOM_UPDATED, serializeRoom(room));
@@ -353,7 +432,25 @@ export function createSocketServer(httpServer: HttpServer): Server {
         roomService.bindSocket(user.sub, socket.id);
         const room = roomService.getRoomByUser(user.sub);
         if (!room) {
+          const watching = roomService.getRoomBySpectator(user.sub);
+          if (watching) {
+            if (resolvedRoomPhase(watching) === 'finished') {
+              void closeFinishedRoom(io, watching.roomId);
+              if (typeof ack === 'function') ack({ success: false, message: 'Match ended' });
+              return;
+            }
+            roomService.bindSpectatorSocket(user.sub, socket.id);
+            await socket.join(watching.roomId);
+            const data = spectatorSessionForUser(watching, user.sub);
+            if (typeof ack === 'function') ack({ success: true, data });
+            return;
+          }
           if (typeof ack === 'function') ack({ success: false, message: 'No room' });
+          return;
+        }
+        if (resolvedRoomPhase(room) === 'finished') {
+          void closeFinishedRoom(io, room.roomId);
+          if (typeof ack === 'function') ack({ success: false, message: 'Match ended' });
           return;
         }
         await socket.join(room.roomId);
@@ -379,6 +476,10 @@ export function createSocketServer(httpServer: HttpServer): Server {
           userId: user.sub,
           room: serializeRoom(room),
         });
+      }
+      const spectated = roomService.markSpectatorDisconnected(user.sub, socket.id);
+      if (spectated) {
+        io.to(spectated.roomId).emit(SOCKET_EVENTS.ROOM_UPDATED, serializeRoom(spectated));
       }
     });
   });
@@ -496,8 +597,11 @@ function attachEngineBroadcast(io: Server, roomId: string): void {
       io.to(roomId).emit(SOCKET_EVENTS.NEXT_ROUND, event);
     }
     if (event.type === 'finished') {
+      clearScoreboardTimer(roomId);
       io.to(roomId).emit(SOCKET_EVENTS.GAME_FINISHED, event);
       broadcastGame(io, roomId);
+      scheduleFinishedRoomClose(io, roomId);
+      return;
     }
     if (event.type === 'dealt') {
       broadcastGame(io, roomId);
@@ -519,6 +623,17 @@ function broadcastGame(io: Server, roomId: string): void {
     };
     io.to(player.socketId).emit(SOCKET_EVENTS.DEAL_CARDS, snap);
     io.to(player.socketId).emit(SOCKET_EVENTS.ROOM_UPDATED, {
+      ...roomPayload,
+      snapshot: snap,
+    });
+  }
+
+  for (const spectator of room.spectators) {
+    if (!spectator.socketId) continue;
+    const snap = buildSpectatorSnapshot(room);
+    if (!snap) continue;
+    io.to(spectator.socketId).emit(SOCKET_EVENTS.DEAL_CARDS, snap);
+    io.to(spectator.socketId).emit(SOCKET_EVENTS.ROOM_UPDATED, {
       ...roomPayload,
       snapshot: snap,
     });
@@ -570,6 +685,7 @@ function serializeRoom(room: NonNullable<ReturnType<typeof roomService.getLiveRo
       seatIndex: p.seatIndex,
       isReady: p.isReady,
       isConnected: p.isConnected,
+      avatarId: p.avatarId,
     })),
     maxPlayers: room.maxPlayers,
     matchId: room.matchId,
@@ -577,9 +693,44 @@ function serializeRoom(room: NonNullable<ReturnType<typeof roomService.getLiveRo
     suspendApprovals: [...(room.suspendApprovals ?? [])],
     countdownRemaining:
       room.phase === 'countdown' ? (countdownRemaining.get(room.roomId) ?? null) : null,
+    spectatorCount: room.spectators.length,
     publicSnapshot: room.engine?.getPublicSnapshot() ?? null,
     chat: room.chat,
   };
+}
+
+function buildSpectatorSnapshot(room: NonNullable<ReturnType<typeof roomService.getLiveRoom>>) {
+  if (!room.engine) return undefined;
+  return {
+    ...room.engine.getPublicSnapshot(),
+    myHand: [],
+    myUserId: '',
+    canBidReshuffle: false,
+    reshuffleReasons: [] as string[],
+    suspendApprovals: [...(room.suspendApprovals ?? [])],
+  };
+}
+
+function spectatorSessionForUser(
+  room: NonNullable<ReturnType<typeof roomService.getLiveRoom>>,
+  userId: string,
+) {
+  const snapshot = buildSpectatorSnapshot(room);
+  return { ...serializeRoom(room), snapshot, isSpectator: true, spectatorUserId: userId };
+}
+
+function emitSpectatorSession(
+  socket: Socket,
+  room: NonNullable<ReturnType<typeof roomService.getLiveRoom>>,
+  userId: string,
+) {
+  const payload = spectatorSessionForUser(room, userId);
+  socket.emit(SOCKET_EVENTS.ROOM_UPDATED, payload);
+  if (payload.snapshot) {
+    socket.emit(SOCKET_EVENTS.DEAL_CARDS, payload.snapshot);
+  }
+  socket.emit(SOCKET_EVENTS.CHAT_HISTORY, { messages: room.chat });
+  return payload;
 }
 
 function roomSessionForUser(

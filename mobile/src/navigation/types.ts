@@ -1,6 +1,7 @@
 export type RootStackParamList = {
   Auth: undefined;
   Lobby: undefined;
+  Profile: undefined;
   RoomList: { roomType: 3 | 4 | 5 };
   Room: undefined;
   Game: undefined;

@@ -11,6 +11,8 @@ import {
   joinRoomSchema,
   loginSchema,
   registerSchema,
+  updateProfileSchema,
+  updateAvatarSchema,
 } from '../validators/auth';
 
 const authController = new AuthController();
@@ -25,6 +27,8 @@ authRouter.post('/guest', validateBody(guestSchema), authController.guest);
 authRouter.post('/google', validateBody(googleSchema), authController.google);
 authRouter.post('/apple', validateBody(appleSchema), authController.apple);
 authRouter.get('/me', authenticate, authController.me);
+authRouter.patch('/profile', authenticate, validateBody(updateProfileSchema), authController.updateProfile);
+authRouter.patch('/avatar', authenticate, validateBody(updateAvatarSchema), authController.updateAvatar);
 
 export const roomRouter = Router();
 roomRouter.use(authenticate);
@@ -43,5 +47,7 @@ statsRouter.get('/achievements', statsController.achievements);
 
 export const adminRouter = Router();
 adminRouter.use(authenticate);
+adminRouter.get('/rooms', adminController.listRooms);
+adminRouter.post('/rooms/:roomId/close', adminController.closeRoom);
 adminRouter.post('/purge-rooms', adminController.purgeRooms);
 adminRouter.post('/clear-stats', adminController.clearStats);

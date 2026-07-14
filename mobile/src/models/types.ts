@@ -26,6 +26,7 @@ export interface User {
   email?: string;
   provider: string;
   isGuest: boolean;
+  avatarId?: number | null;
 }
 
 export interface RoomPlayer {
@@ -34,6 +35,7 @@ export interface RoomPlayer {
   seatIndex: number;
   isReady: boolean;
   isConnected: boolean;
+  avatarId?: number;
 }
 
 export interface Room {
@@ -49,6 +51,7 @@ export interface Room {
   startApprovals?: string[];
   suspendApprovals?: string[];
   countdownRemaining?: number | null;
+  spectatorCount?: number;
   chat?: Array<{ userId: string; username: string; message: string; at: number }>;
   publicSnapshot?: GameSnapshot | null;
   snapshot?: PrivateGameSnapshot;
@@ -58,6 +61,7 @@ export interface GamePlayer {
   userId: string;
   username: string;
   seatIndex: number;
+  avatarId?: number;
   handCount: number;
   bid: number | null;
   tricksWon: number;

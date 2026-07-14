@@ -53,6 +53,7 @@ export function GameScreen() {
   const heldTrick = useGameStore((s) => s.heldTrick);
   const tableOverlay = useGameStore((s) => s.tableOverlay);
   const hideHand = useGameStore((s) => s.hideHand);
+  const isSpectator = useGameStore((s) => s.isSpectator);
   const setError = useGameStore((s) => s.setError);
   const setTrickCollect = useGameStore((s) => s.setTrickCollect);
   const [selected, setSelected] = useState<string | null>(null);
@@ -71,12 +72,21 @@ export function GameScreen() {
   const { height: winH } = useWindowDimensions();
   const handDockHeight = isPortrait ? Math.min(140, Math.max(100, winH * 0.16)) : 118;
   const isAdmin = user?.email?.trim().toLowerCase() === ADMIN_EMAIL;
+  const spectatorCount = room?.spectatorCount ?? 0;
   const autoPlayRef = useRef<string | null>(null);
   const autoPlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const playInFlightRef = useRef(false);
   const suspendDismissedRef = useRef(false);
   const prevSuspendCountRef = useRef(0);
   const { bubbles: tableChatBubbles } = useTableChatBubbles();
+
+  useEffect(() => {
+    return () => {
+      if (!useGameStore.getState().isSpectator) return;
+      void emitAck(SOCKET_EVENTS.LEAVE_WATCH, {}).catch(() => undefined);
+      useGameStore.getState().setSpectatorMode(false);
+    };
+  }, []);
 
   const mySeat = useMemo(
     () => snapshot?.players.find((p) => p.userId === user?.id)?.seatIndex,
@@ -360,7 +370,9 @@ export function GameScreen() {
   const showFinalScoreboard = showScoreboard && isFinalRound;
   const showPlaying = snapshot.phase === 'playing';
   const showHand =
-    ['bidding', 'playing', 'reshuffle_check'].includes(snapshot.phase) && !hideHand;
+    !isSpectator &&
+    ['bidding', 'playing', 'reshuffle_check'].includes(snapshot.phase) &&
+    !hideHand;
   const trickPlays =
     snapshot.currentTrick?.plays?.length
       ? snapshot.currentTrick.plays
@@ -399,6 +411,12 @@ export function GameScreen() {
                   <Text style={styles.phase}>{phaseLabel}</Text>
                 </View>
                 <View style={styles.topActions}>
+                  {(spectatorCount > 0 || isSpectator) && (
+                    <View style={styles.viewerPill} accessibilityLabel={`${spectatorCount} watching`}>
+                      <Ionicons name="eye-outline" size={11} color={colors.cream} />
+                      <Text style={styles.viewerCount}>{spectatorCount}</Text>
+                    </View>
+                  )}
                   {isAdmin ? (
                     <Pressable
                       style={[styles.adminBtn, adminBusy && styles.adminBtnBusy]}
@@ -415,6 +433,7 @@ export function GameScreen() {
                       />
                     </Pressable>
                   ) : null}
+                  {!isSpectator ? (
                   <Pressable
                     style={[styles.pauseBtn, hasSuspendApproved && styles.pauseBtnActive]}
                     onPress={confirmSuspend}
@@ -429,6 +448,7 @@ export function GameScreen() {
                       color={hasSuspendApproved ? colors.accentBright : colors.cream}
                     />
                   </Pressable>
+                  ) : null}
                 </View>
               </View>
 
@@ -674,6 +694,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     marginLeft: 'auto',
+  },
+  viewerPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  viewerCount: {
+    color: colors.cream,
+    fontFamily: fonts.bodyBold,
+    fontSize: 10,
   },
   adminBtn: {
     width: 24,

@@ -68,6 +68,8 @@ export const authApi = {
   apple: (providerId: string, email: string | undefined, username: string) =>
     authHttp.post('/auth/apple', { providerId, email, username }),
   me: () => api.get('/auth/me'),
+  updateProfile: (username: string) => api.patch('/auth/profile', { username }),
+  updateAvatar: (avatarId: number) => api.patch('/auth/avatar', { avatarId }),
 };
 
 export const roomApi = {
@@ -83,10 +85,25 @@ export const statsApi = {
   history: () => api.get('/stats/history'),
   matchDetail: (matchId: string) => api.get(`/stats/match/${matchId}`),
   playerHistory: (userId: string) => api.get(`/stats/player/${userId}/history`),
-  leaderboard: () => api.get('/stats/leaderboard'),
+  leaderboard: (period: 'all' | 'monthly' | 'high' = 'all') =>
+    api.get('/stats/leaderboard', { params: { period } }),
   achievements: () => api.get('/stats/achievements'),
 };
 
+export type AdminLiveRoom = {
+  id: string;
+  inviteCode: string;
+  roomType: 3 | 4 | 5;
+  visibility: 'public' | 'private';
+  phase: string;
+  players: number;
+  maxPlayers: number;
+  playerNames: string[];
+  hostId: string;
+};
+
 export const adminApi = {
+  listRooms: () => api.get<{ success: boolean; data: AdminLiveRoom[] }>('/admin/rooms'),
+  closeRoom: (roomId: string) => api.post(`/admin/rooms/${roomId}/close`),
   purgeRooms: () => api.post('/admin/purge-rooms'),
 };

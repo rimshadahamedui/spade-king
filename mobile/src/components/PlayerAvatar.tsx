@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -8,6 +8,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { colors, fonts, radii } from '../theme';
+import { getAvatarSource } from '../constants/avatars';
 
 const SEAT_COLORS = [
   '#C9A227',
@@ -19,6 +20,7 @@ const SEAT_COLORS = [
 
 interface Props {
   username: string;
+  avatarId?: number | null;
   seatIndex: number;
   bid?: number | null;
   tricksWon?: number;
@@ -34,6 +36,7 @@ interface Props {
 
 export function PlayerAvatar({
   username,
+  avatarId,
   seatIndex,
   bid,
   tricksWon,
@@ -48,6 +51,7 @@ export function PlayerAvatar({
 }: Props) {
   const accent = SEAT_COLORS[seatIndex % SEAT_COLORS.length];
   const initial = username.charAt(0).toUpperCase();
+  const avatarSource = getAvatarSource(avatarId);
   const active = isCurrentTurn || isCurrentBidder;
   const pulse = useSharedValue(1);
 
@@ -96,8 +100,22 @@ export function PlayerAvatar({
               active && pulseStyle,
             ]}
           >
-            <View style={[styles.circle, compact && styles.circleCompact, { backgroundColor: accent }]}>
-              <Text style={[styles.initial, compact && styles.initialCompact]}>{initial}</Text>
+            <View
+              style={[
+                styles.circle,
+                compact && styles.circleCompact,
+                !avatarSource && { backgroundColor: accent },
+              ]}
+            >
+              {avatarSource ? (
+                <Image
+                  source={avatarSource}
+                  style={[styles.avatarImage, compact && styles.avatarImageCompact]}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text style={[styles.initial, compact && styles.initialCompact]}>{initial}</Text>
+              )}
             </View>
             {isDealer && (
               <View style={styles.dealerBadge}>
@@ -198,8 +216,19 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   circleCompact: { width: 34, height: 34, borderRadius: 17 },
+  avatarImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  avatarImageCompact: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+  },
   initial: {
     color: colors.ink,
     fontFamily: fonts.bodyBold,

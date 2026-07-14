@@ -31,6 +31,14 @@ export class UserRepository {
     return UserModel.findOne({ username });
   }
 
+  async updateUsername(userId: string, username: string): Promise<IUser | null> {
+    return UserModel.findByIdAndUpdate(userId, { username }, { new: true });
+  }
+
+  async updateAvatar(userId: string, avatarId: number): Promise<IUser | null> {
+    return UserModel.findByIdAndUpdate(userId, { avatarId }, { new: true });
+  }
+
   async addFriend(userId: Types.ObjectId, friendId: Types.ObjectId): Promise<void> {
     await UserModel.findByIdAndUpdate(userId, { $addToSet: { friends: friendId } });
   }

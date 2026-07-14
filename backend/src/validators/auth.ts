@@ -37,6 +37,23 @@ export const createRoomSchema = z.object({
   visibility: z.enum(['public', 'private']).default('public'),
 });
 
+export const updateProfileSchema = z.object({
+  username: z.string().trim().min(2).max(24),
+});
+
+export const updateAvatarSchema = z.object({
+  avatarId: z.union([
+    z.literal(1),
+    z.literal(2),
+    z.literal(3),
+    z.literal(4),
+    z.literal(5),
+    z.literal(6),
+    z.literal(7),
+    z.literal(8),
+  ]),
+});
+
 export const joinRoomSchema = z.object({
   inviteCode: z.string().min(4).max(12).optional(),
   roomId: z.string().optional(),

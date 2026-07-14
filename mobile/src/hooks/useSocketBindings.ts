@@ -237,7 +237,9 @@ export function useSocketBindings() {
         }
         if (data.chat) setChat(data.chat);
         if (data.id && (wasEmpty || (wasLobby && isInGamePhase(data.phase)))) {
-          navigateToActiveRoom(data);
+          if (data.phase !== 'finished' && data.snapshot?.phase !== 'finished') {
+            navigateToActiveRoom(data);
+          }
         }
       };
 
@@ -290,6 +292,10 @@ export function useSocketBindings() {
           };
           if (!res?.success || !res.data?.id) return;
           const data = res.data;
+          if (data.phase === 'finished' || data.snapshot?.phase === 'finished') {
+            useGameStore.getState().reset();
+            return;
+          }
           const prevRoom = useGameStore.getState().room;
           const wasEmpty = !prevRoom?.id;
           const wasLobby =
@@ -309,7 +315,9 @@ export function useSocketBindings() {
           }
           if (data.chat) setChat(data.chat);
           if (wasEmpty || (wasLobby && isInGamePhase(data.phase))) {
-            navigateToActiveRoom(data);
+            if (data.phase !== 'finished' && data.snapshot?.phase !== 'finished') {
+              navigateToActiveRoom(data);
+            }
           }
         } catch {
           // No active room — normal for a fresh session.

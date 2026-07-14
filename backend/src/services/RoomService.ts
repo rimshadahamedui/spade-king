@@ -3,6 +3,7 @@ import { ROOM_MODE_CONFIG } from '../constants';
 import { env } from '../config/env';
 import { RoomRepository } from '../repositories/RoomRepository';
 import { MatchRepository } from '../repositories/MatchRepository';
+import { UserRepository } from '../repositories/UserRepository';
 import { GameEngine } from '../game';
 import type { RoomType, RoomVisibility } from '../types';
 import { logger } from '../utils/logger';
@@ -21,6 +22,7 @@ export interface LiveRoom {
     seatIndex: number;
     isReady: boolean;
     isConnected: boolean;
+    avatarId?: number;
     socketId?: string;
   }>;
   maxPlayers: number;
@@ -32,6 +34,8 @@ export interface LiveRoom {
   startApprovals: string[];
   /** Players who agreed to suspend/end the game without saving scores */
   suspendApprovals: string[];
+  /** Read-only viewers while the table is in progress */
+  spectators: Array<{ userId: string; username: string; socketId?: string }>;
 }
 
 /**
@@ -43,10 +47,12 @@ export class RoomService {
   private rooms = new Map<string, LiveRoom>();
   private byInvite = new Map<string, string>();
   private userToRoom = new Map<string, string>();
+  private spectatorToRoom = new Map<string, string>();
 
   constructor(
     private readonly roomsRepo = new RoomRepository(),
     private readonly matchesRepo = new MatchRepository(),
+    private readonly usersRepo = new UserRepository(),
   ) {}
 
   getLiveRoom(roomId: string): LiveRoom | undefined {
@@ -70,6 +76,8 @@ export class RoomService {
     }
     const config = ROOM_MODE_CONFIG[params.roomType];
     const inviteCode = this.generateInviteCode();
+
+    const hostAvatarId = await this.resolveAvatarId(params.hostId);
 
     const doc = await this.roomsRepo.create({
       inviteCode,
@@ -102,6 +110,7 @@ export class RoomService {
           seatIndex: 0,
           isReady: true,
           isConnected: true,
+          avatarId: hostAvatarId,
         },
       ],
       maxPlayers: config.playerCount,
@@ -110,6 +119,7 @@ export class RoomService {
       lastActivityAt: Date.now(),
       startApprovals: [],
       suspendApprovals: [],
+      spectators: [],
     };
 
     this.rooms.set(live.roomId, live);
@@ -142,6 +152,7 @@ export class RoomService {
     if (existingPlayer) {
       existingPlayer.isConnected = true;
       existingPlayer.username = params.username;
+      existingPlayer.avatarId = await this.resolveAvatarId(params.userId);
       this.userToRoom.set(params.userId, live.roomId);
       this.touchActivity(live);
       return live;
@@ -157,12 +168,14 @@ export class RoomService {
     }
 
     const seatIndex = this.nextSeat(live);
+    const avatarId = await this.resolveAvatarId(params.userId);
     live.players.push({
       userId: params.userId,
       username: params.username,
       seatIndex,
       isReady: true,
       isConnected: true,
+      avatarId,
     });
     live.startApprovals = [];
     this.sanitizeStartApprovals(live);
@@ -357,12 +370,14 @@ export class RoomService {
         userId: p.userId,
         username: p.username,
         seatIndex: p.seatIndex,
+        avatarId: p.avatarId,
       })),
       shufflerSeatIndex: 0,
     });
 
     engine.onEvent(async (event) => {
       if (event.type === 'finished') {
+        live.phase = 'finished';
         await this.persistFinishedMatch(live, event.winners, event.totals);
       }
       if (event.type === 'phase') {
@@ -477,27 +492,184 @@ export class RoomService {
     return live;
   }
 
+  getRoomBySpectator(userId: string): LiveRoom | undefined {
+    const id = this.spectatorToRoom.get(userId);
+    return id ? this.rooms.get(id) : undefined;
+  }
+
+  updatePlayerAvatar(userId: string, avatarId: number): void {
+    for (const live of this.rooms.values()) {
+      const player = live.players.find((p) => p.userId === userId);
+      if (player) player.avatarId = avatarId;
+      live.engine?.updatePlayerAvatar(userId, avatarId);
+    }
+  }
+
+  updatePlayerUsername(userId: string, username: string): void {
+    for (const live of this.rooms.values()) {
+      const player = live.players.find((p) => p.userId === userId);
+      if (player) player.username = username;
+      const spectator = live.spectators.find((s) => s.userId === userId);
+      if (spectator) spectator.username = username;
+      live.engine?.updatePlayerUsername(userId, username);
+    }
+  }
+
+  private isWatchablePhase(live: LiveRoom): boolean {
+    const phase = live.phase === 'countdown' ? 'countdown' : (live.engine?.getPhase() ?? live.phase);
+    return phase !== 'waiting' && phase !== 'countdown' && phase !== 'finished';
+  }
+
+  async watchRoom(params: {
+    inviteCode?: string;
+    roomId?: string;
+    userId: string;
+    username: string;
+  }): Promise<LiveRoom> {
+    let live: LiveRoom | undefined;
+    if (params.roomId) live = this.rooms.get(params.roomId);
+    if (!live && params.inviteCode) {
+      const id = this.byInvite.get(params.inviteCode.toUpperCase());
+      if (id) live = this.rooms.get(id);
+    }
+    if (!live) throw new Error('Room not found');
+
+    const asPlayer = live.players.find((p) => p.userId === params.userId);
+    if (asPlayer) {
+      asPlayer.username = params.username;
+      asPlayer.isConnected = true;
+      this.userToRoom.set(params.userId, live.roomId);
+      this.spectatorToRoom.delete(params.userId);
+      return live;
+    }
+
+    if (!this.isWatchablePhase(live)) {
+      throw new Error('This table is not in progress');
+    }
+    if (live.players.length < live.maxPlayers) {
+      throw new Error('Table is not full yet — you can still join as a player');
+    }
+
+    const otherRoom = this.userToRoom.get(params.userId);
+    if (otherRoom && otherRoom !== live.roomId) {
+      await this.leaveRoom(params.userId);
+    }
+    await this.leaveWatch(params.userId);
+
+    let spectator = live.spectators.find((s) => s.userId === params.userId);
+    if (!spectator) {
+      spectator = { userId: params.userId, username: params.username };
+      live.spectators.push(spectator);
+    } else {
+      spectator.username = params.username;
+    }
+    this.spectatorToRoom.set(params.userId, live.roomId);
+    this.touchActivity(live);
+    return live;
+  }
+
+  async leaveWatch(userId: string): Promise<LiveRoom | null> {
+    const live = this.getRoomBySpectator(userId);
+    if (!live) return null;
+    live.spectators = live.spectators.filter((s) => s.userId !== userId);
+    this.spectatorToRoom.delete(userId);
+    return live;
+  }
+
+  bindSpectatorSocket(userId: string, socketId: string): void {
+    const live = this.getRoomBySpectator(userId);
+    if (!live) return;
+    const spectator = live.spectators.find((s) => s.userId === userId);
+    if (spectator) spectator.socketId = socketId;
+  }
+
+  markSpectatorDisconnected(userId: string, socketId: string): LiveRoom | null {
+    const live = this.getRoomBySpectator(userId);
+    if (!live) return null;
+    const spectator = live.spectators.find((s) => s.userId === userId);
+    if (!spectator) return live;
+    if (spectator.socketId && spectator.socketId !== socketId) return live;
+    live.spectators = live.spectators.filter((s) => s.userId !== userId);
+    this.spectatorToRoom.delete(userId);
+    return live;
+  }
+
+  async teardownFinishedRoom(roomId: string): Promise<string | null> {
+    const live = this.rooms.get(roomId);
+    if (!live) return null;
+    const phase = live.engine?.getPhase() ?? live.phase;
+    if (phase !== 'finished' && live.phase !== 'finished') return null;
+    await this.forceCloseRoom(live);
+    return roomId;
+  }
+
   listPublicRooms(roomType?: RoomType) {
     return Array.from(this.rooms.values())
       .filter(
         (r) =>
           r.visibility === 'public' &&
-          r.phase === 'waiting' &&
+          r.players.length > 0 &&
+          r.phase !== 'finished' &&
           (!roomType || r.roomType === roomType),
       )
+      .sort((a, b) => b.lastActivityAt - a.lastActivityAt)
+      .map((r) => {
+        const phase = r.phase === 'countdown' ? 'countdown' : (r.engine?.getPhase() ?? r.phase);
+        const status =
+          phase === 'waiting' ? 'open' : phase === 'countdown' ? 'starting' : 'playing';
+        return {
+          id: r.roomId,
+          inviteCode: r.inviteCode,
+          roomType: r.roomType,
+          players: r.players.length,
+          maxPlayers: r.maxPlayers,
+          phase,
+          status,
+        };
+      });
+  }
+
+  /** All in-memory tables — admin monitoring. */
+  listAllLiveRooms() {
+    return Array.from(this.rooms.values())
       .sort((a, b) => b.lastActivityAt - a.lastActivityAt)
       .map((r) => ({
         id: r.roomId,
         inviteCode: r.inviteCode,
         roomType: r.roomType,
+        visibility: r.visibility,
+        phase: r.phase === 'countdown' ? 'countdown' : (r.engine?.getPhase() ?? r.phase),
         players: r.players.length,
         maxPlayers: r.maxPlayers,
-        phase: r.phase,
+        playerNames: r.players.map((p) => p.username),
+        hostId: r.hostId,
       }));
+  }
+
+  /** Force-close any live table (lobby or in-progress). */
+  async adminCloseRoom(roomId: string): Promise<string | null> {
+    const live = this.rooms.get(roomId);
+    if (!live) return null;
+
+    if (live.matchId && live.engine) {
+      const phase = live.engine.getPhase();
+      if (phase !== 'waiting' && phase !== 'countdown' && phase !== 'finished') {
+        await this.matchesRepo.abort(live.matchId);
+      }
+    }
+
+    const closedId = live.roomId;
+    await this.forceCloseRoom(live);
+    return closedId;
   }
 
   getInactivityTtlMs(): number {
     return env.ROOM_IDLE_TTL_SECONDS * 1000;
+  }
+
+  private async resolveAvatarId(userId: string): Promise<number | undefined> {
+    const user = await this.usersRepo.findById(userId);
+    return user?.avatarId ?? undefined;
   }
 
   private sanitizeStartApprovals(live: LiveRoom): void {
@@ -513,6 +685,10 @@ export class RoomService {
     for (const player of live.players) {
       this.userToRoom.delete(player.userId);
     }
+    for (const spectator of live.spectators) {
+      this.spectatorToRoom.delete(spectator.userId);
+    }
+    live.spectators = [];
     this.rooms.delete(live.roomId);
     this.byInvite.delete(live.inviteCode);
     if (deactivateDb) {
@@ -614,6 +790,7 @@ export class RoomService {
       lastActivityAt: Date.now(),
       startApprovals: [],
       suspendApprovals: [],
+      spectators: [],
     };
     this.rooms.set(live.roomId, live);
     this.byInvite.set(live.inviteCode, live.roomId);

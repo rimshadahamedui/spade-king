@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import React, { useEffect, useMemo } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,8 +7,9 @@ import { Button } from '../components/Button';
 import { MatchResultsPanel } from '../components/MatchResultsPanel';
 import { ScreenBackdrop } from '../components/ScreenBackdrop';
 import { useGameStore } from '../store/gameStore';
+import { navigateToLobby } from '../navigation/navigationRef';
 import type { RootStackParamList } from '../navigation/types';
-import { spacing } from '../theme';
+import { colors, fonts, spacing } from '../theme';
 
 export function ScoreboardScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -18,12 +19,22 @@ export function ScoreboardScreen() {
 
   const finished = snapshot?.phase === 'finished' || room?.phase === 'finished';
 
+  useEffect(() => {
+    if (!finished) return;
+    const timer = setTimeout(() => {
+      useGameStore.getState().reset();
+      navigateToLobby();
+    }, 10_000);
+    return () => clearTimeout(timer);
+  }, [finished]);
+
   const resultsData = useMemo(() => {
     if (!snapshot) return null;
     const players = snapshot.players.map((p) => ({
       userId: p.userId,
       username: p.username,
       seatIndex: p.seatIndex,
+      avatarId: p.avatarId,
       totalScore: p.totalScore,
     }));
     return {
@@ -64,9 +75,10 @@ export function ScoreboardScreen() {
                     title="Lounge"
                     onPress={() => {
                       useGameStore.getState().reset();
-                      navigation.navigate('Lobby');
+                      navigateToLobby();
                     }}
                   />
+                  <Text style={styles.autoHint}>Returning to lounge in a few seconds…</Text>
                 </View>
               }
             />
@@ -101,5 +113,12 @@ const styles = StyleSheet.create({
   footer: {
     marginTop: spacing.md,
     alignItems: 'center',
+    gap: spacing.sm,
+  },
+  autoHint: {
+    color: colors.textDim,
+    fontFamily: fonts.body,
+    fontSize: 11,
+    textAlign: 'center',
   },
 });

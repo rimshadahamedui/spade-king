@@ -18,7 +18,7 @@ import { ScreenBackdrop } from '../components/ScreenBackdrop';
 import { useAuthStore } from '../store/authStore';
 import { colors, fonts, radii, spacing, surfaces } from '../theme';
 
-type Mode = 'login' | 'register' | 'guest';
+type Mode = 'login' | 'register';
 
 interface FormValues {
   email: string;
@@ -27,25 +27,20 @@ interface FormValues {
 }
 
 function validationMessage(mode: Mode, errors: FieldErrors<FormValues>): string | null {
-  if (mode === 'register' || mode === 'login') {
-    if (errors.email) return 'Enter a valid email address.';
-    if (errors.password) {
-      return mode === 'login'
-        ? 'Enter your password.'
-        : 'Password must be at least 8 characters.';
-    }
+  if (errors.email) return 'Enter a valid email address.';
+  if (errors.password) {
+    return mode === 'login'
+      ? 'Enter your password.'
+      : 'Password must be at least 8 characters.';
   }
   if (mode === 'register' && errors.username) {
     return 'Username must be 2–24 characters.';
-  }
-  if (mode === 'guest' && errors.username) {
-    return 'Table name must be 2–24 characters, or leave it blank.';
   }
   return null;
 }
 
 export function AuthScreen() {
-  const [mode, setMode] = useState<Mode>('guest');
+  const [mode, setMode] = useState<Mode>('login');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
@@ -55,16 +50,13 @@ export function AuthScreen() {
   });
   const loginEmail = useAuthStore((s) => s.loginEmail);
   const register = useAuthStore((s) => s.register);
-  const loginGuest = useAuthStore((s) => s.loginGuest);
 
   const onValid = async (values: FormValues) => {
     setBusy(true);
     setError(null);
     try {
       if (mode === 'login') await loginEmail(values.email.trim(), values.password);
-      else if (mode === 'register')
-        await register(values.email.trim(), values.password, values.username.trim());
-      else await loginGuest(values.username.trim() || undefined);
+      else await register(values.email.trim(), values.password, values.username.trim());
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Authentication failed');
     } finally {
@@ -113,89 +105,81 @@ export function AuthScreen() {
 
             <View style={styles.panel}>
               <View style={styles.tabs}>
-                {(['guest', 'login', 'register'] as Mode[]).map((m) => (
+                {(
+                  [
+                    { key: 'login' as const, label: 'Sign In' },
+                    { key: 'register' as const, label: 'Register' },
+                  ] as const
+                ).map(({ key, label }) => (
                   <Pressable
-                    key={m}
-                    onPress={() => switchMode(m)}
-                    style={[styles.tab, mode === m && styles.tabOn]}
+                    key={key}
+                    onPress={() => switchMode(key)}
+                    style={[styles.tab, mode === key && styles.tabOn]}
                   >
-                    <Text style={[styles.tabText, mode === m && styles.tabTextOn]}>{m}</Text>
+                    <Text style={[styles.tabText, mode === key && styles.tabTextOn]}>{label}</Text>
                   </Pressable>
                 ))}
               </View>
 
               <View style={styles.fields}>
-                {(mode === 'login' || mode === 'register') && (
-                  <>
-                    <Controller
-                      control={control}
-                      name="email"
-                      rules={{
-                        required: true,
-                        pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                      }}
-                      render={({ field: { onChange, value } }) => (
-                        <TextField
-                          compact
-                          label="Email"
-                          autoCapitalize="none"
-                          autoCorrect={false}
-                          keyboardType="email-address"
-                          textContentType="emailAddress"
-                          value={value}
-                          onChangeText={onChange}
-                          placeholder="you@example.com"
-                        />
-                      )}
-                    />
-                    <Controller
-                      control={control}
-                      name="password"
-                      rules={
-                        mode === 'login'
-                          ? { required: true, minLength: 1 }
-                          : { required: true, minLength: 8 }
-                      }
-                      render={({ field: { onChange, value } }) => (
-                        <TextField
-                          compact
-                          label="Password"
-                          secureTextEntry
-                          textContentType={mode === 'register' ? 'newPassword' : 'password'}
-                          value={value}
-                          onChangeText={onChange}
-                          placeholder="••••••••"
-                        />
-                      )}
-                    />
-                  </>
-                )}
-
-                {(mode === 'register' || mode === 'guest') && (
+                <>
                   <Controller
                     control={control}
-                    name="username"
+                    name="email"
+                    rules={{
+                      required: true,
+                      pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                    }}
+                    render={({ field: { onChange, value } }) => (
+                      <TextField
+                        compact
+                        label="Email"
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        keyboardType="email-address"
+                        textContentType="emailAddress"
+                        value={value}
+                        onChangeText={onChange}
+                        placeholder="you@example.com"
+                      />
+                    )}
+                  />
+                  <Controller
+                    control={control}
+                    name="password"
                     rules={
-                      mode === 'register'
-                        ? { required: true, minLength: 2, maxLength: 24 }
-                        : mode === 'guest'
-                          ? {
-                              validate: (value) =>
-                                !value?.trim() ||
-                                (value.trim().length >= 2 && value.trim().length <= 24) ||
-                                '2–24 characters',
-                            }
-                          : undefined
+                      mode === 'login'
+                        ? { required: true, minLength: 1 }
+                        : { required: true, minLength: 8 }
                     }
                     render={({ field: { onChange, value } }) => (
                       <TextField
                         compact
-                        label={mode === 'guest' ? 'Table name' : 'Username'}
+                        label="Password"
+                        secureTextEntry
+                        textContentType={mode === 'register' ? 'newPassword' : 'password'}
+                        value={value}
+                        onChangeText={onChange}
+                        placeholder="••••••••"
+                      />
+                    )}
+                  />
+                </>
+
+                {mode === 'register' && (
+                  <Controller
+                    control={control}
+                    name="username"
+                    rules={{ required: true, minLength: 2, maxLength: 24 }}
+                    render={({ field: { onChange, value } }) => (
+                      <TextField
+                        compact
+                        label="Username"
                         autoCapitalize="none"
                         autoCorrect={false}
                         value={value}
                         onChangeText={onChange}
-                        placeholder={mode === 'guest' ? 'Optional alias' : 'Choose a name'}
+                        placeholder="Choose a name"
                       />
                     )}
                   />
@@ -205,15 +189,7 @@ export function AuthScreen() {
               {!!error && <Text style={styles.error}>{error}</Text>}
 
               <Button
-                title={
-                  busy
-                    ? 'Please wait…'
-                    : mode === 'guest'
-                      ? 'Enter the lounge'
-                      : mode === 'login'
-                        ? 'Sign In'
-                        : 'Create Account'
-                }
+                title={busy ? 'Please wait…' : mode === 'login' ? 'Sign In' : 'Create Account'}
                 onPress={onSubmit}
                 disabled={busy}
                 style={styles.submitBtn}
@@ -270,7 +246,6 @@ const styles = StyleSheet.create({
   tabOn: { backgroundColor: 'rgba(201,162,39,0.2)' },
   tabText: {
     color: colors.textDim,
-    textTransform: 'capitalize',
     fontFamily: fonts.bodyMedium,
     fontSize: 12,
   },

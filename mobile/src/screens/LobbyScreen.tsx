@@ -6,22 +6,30 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'react-native';
+import { AdminActiveRoomsPanel } from '../components/AdminActiveRoomsPanel';
 import { BrandLogo } from '../components/BrandLogo';
 import { ScreenBackdrop } from '../components/ScreenBackdrop';
 import { UserMenuButton, UserMenuOverlay } from '../components/UserMenu';
 import { CATEGORY_IMAGES, CATEGORY_LABELS } from '../constants/categories';
+import { ADMIN_EMAIL } from '../constants';
 import { useIsPortrait } from '../hooks/useIsPortrait';
 import type { RootStackParamList } from '../navigation/types';
+import { useAuthStore } from '../store/authStore';
 import { colors, fonts, gradients, radii, spacing } from '../theme';
 
 const THUMB_SIDE_PAD = 28;
 
+type LobbyTab = 'play' | 'admin';
+
 export function LobbyScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const user = useAuthStore((s) => s.user);
   const insets = useSafeAreaInsets();
   const { width: winW } = useWindowDimensions();
   const isPortrait = useIsPortrait();
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const isAdmin = user?.email?.trim().toLowerCase() === ADMIN_EMAIL;
+  const [tab, setTab] = useState<LobbyTab>('play');
 
   const pad = {
     paddingTop: Math.max(insets.top, 16) + 4,
@@ -61,6 +69,28 @@ export function LobbyScreen() {
             </View>
           </View>
 
+          {isAdmin ? (
+            <View style={styles.tabRow}>
+              <Pressable
+                style={[styles.tabBtn, tab === 'play' && styles.tabBtnActive]}
+                onPress={() => setTab('play')}
+              >
+                <Text style={[styles.tabText, tab === 'play' && styles.tabTextActive]}>Play</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.tabBtn, tab === 'admin' && styles.tabBtnActive]}
+                onPress={() => setTab('admin')}
+              >
+                <Text style={[styles.tabText, tab === 'admin' && styles.tabTextActive]}>
+                  Active tables
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          {tab === 'admin' && isAdmin ? (
+            <AdminActiveRoomsPanel />
+          ) : (
           <ScrollView
             style={styles.mainScroll}
             contentContainerStyle={styles.mainScrollContent}
@@ -114,8 +144,9 @@ export function LobbyScreen() {
                 </View>
               ))}
             </View>
-          </View>
+            </View>
           </ScrollView>
+          )}
 
           <View style={styles.footerLinks}>
             <Pressable
@@ -192,6 +223,34 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     marginBottom: spacing.sm,
     textAlign: 'center',
+  },
+  tabRow: {
+    flexDirection: 'row',
+    alignSelf: 'center',
+    gap: 8,
+    marginBottom: spacing.md,
+    paddingHorizontal: THUMB_SIDE_PAD,
+  },
+  tabBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
+  tabBtnActive: {
+    borderColor: colors.accentBright,
+    backgroundColor: 'rgba(201,162,39,0.15)',
+  },
+  tabText: {
+    color: colors.textMuted,
+    fontFamily: fonts.bodyBold,
+    fontSize: 12,
+    letterSpacing: 0.4,
+  },
+  tabTextActive: {
+    color: colors.accentBright,
   },
   row: {
     flexDirection: 'row',

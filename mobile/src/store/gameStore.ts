@@ -48,7 +48,8 @@ interface GameState {
   tableOverlay: string | null;
   hideHand: boolean;
   pendingSnapshot: PrivateGameSnapshot | null;
-  lastRoomCloseReason: 'suspended' | null;
+  lastRoomCloseReason: 'suspended' | 'finished' | null;
+  isSpectator: boolean;
   setRoom: (room: Room | null) => void;
   setSnapshot: (snapshot: PrivateGameSnapshot | null) => void;
   applySuspendApprovals: (suspendApprovals: string[]) => void;
@@ -63,6 +64,7 @@ interface GameState {
   clearRoomCloseReason: () => void;
   setHeldTrick: (payload: GameState['heldTrick']) => void;
   setTrickCollect: (payload: GameState['trickCollect']) => void;
+  setSpectatorMode: (isSpectator: boolean) => void;
   reset: () => void;
 }
 
@@ -79,6 +81,7 @@ export const useGameStore = create<GameState>((set) => ({
   hideHand: false,
   pendingSnapshot: null,
   lastRoomCloseReason: null,
+  isSpectator: false,
   setRoom: (room) =>
     set((s) => {
       const merged = room && s.room ? mergeRoom(s.room, room) : room;
@@ -119,6 +122,7 @@ export const useGameStore = create<GameState>((set) => ({
   clearRoomCloseReason: () => set({ lastRoomCloseReason: null }),
   setHeldTrick: (heldTrick) => set({ heldTrick }),
   setTrickCollect: (trickCollect) => set({ trickCollect }),
+  setSpectatorMode: (isSpectator) => set({ isSpectator }),
   reset: () =>
     set({
       room: null,
@@ -132,5 +136,6 @@ export const useGameStore = create<GameState>((set) => ({
       heldTrick: null,
       trickCollect: null,
       lastRoomCloseReason: null,
+      isSpectator: false,
     }),
 }));

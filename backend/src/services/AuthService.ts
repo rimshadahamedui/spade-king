@@ -3,6 +3,8 @@ import jwt from 'jsonwebtoken';
 import { randomBytes } from 'crypto';
 import { env } from '../config/env';
 import { UserRepository } from '../repositories/UserRepository';
+import { MatchRepository } from '../repositories/MatchRepository';
+import { roomService } from './RoomService';
 import type { AuthProvider, JwtPayload } from '../types';
 import type { IUser } from '../models';
 
@@ -15,11 +17,15 @@ export interface AuthTokens {
     email?: string;
     provider: AuthProvider;
     isGuest: boolean;
+    avatarId?: number | null;
   };
 }
 
 export class AuthService {
-  constructor(private readonly users = new UserRepository()) {}
+  constructor(
+    private readonly users = new UserRepository(),
+    private readonly matches = new MatchRepository(),
+  ) {}
 
   async registerEmail(email: string, password: string, username: string): Promise<AuthTokens> {
     const normalizedEmail = email.trim().toLowerCase();
@@ -85,6 +91,57 @@ export class AuthService {
     return this.issueTokens(user);
   }
 
+  async updateUsername(userId: string, username: string): Promise<AuthTokens['user']> {
+    const trimmed = username.trim();
+    if (trimmed.length < 2 || trimmed.length > 24) {
+      throw new Error('Username must be 2–24 characters');
+    }
+
+    const existing = await this.users.findById(userId);
+    if (!existing) throw new Error('User not found');
+    if (existing.isGuest) {
+      throw new Error('Guest accounts cannot change display name');
+    }
+    if (existing.username === trimmed) {
+      return this.mapUser(existing);
+    }
+
+    const taken = await this.users.findByUsername(trimmed);
+    if (taken && taken._id.toString() !== userId) {
+      throw new Error('Username already taken');
+    }
+
+    const updated = await this.users.updateUsername(userId, trimmed);
+    if (!updated) throw new Error('User not found');
+
+    await this.matches.propagateUsername(userId, trimmed);
+    roomService.updatePlayerUsername(userId, trimmed);
+
+    return this.mapUser(updated);
+  }
+
+  async updateAvatar(userId: string, avatarId: number): Promise<AuthTokens['user']> {
+    if (avatarId < 1 || avatarId > 8) {
+      throw new Error('Avatar must be between 1 and 8');
+    }
+
+    const existing = await this.users.findById(userId);
+    if (!existing) throw new Error('User not found');
+
+    const updated = await this.users.updateAvatar(userId, avatarId);
+    if (!updated) throw new Error('User not found');
+
+    roomService.updatePlayerAvatar(userId, avatarId);
+
+    return this.mapUser(updated);
+  }
+
+  async getProfile(userId: string): Promise<AuthTokens['user']> {
+    const user = await this.users.findById(userId);
+    if (!user) throw new Error('User not found');
+    return this.mapUser(user);
+  }
+
   verifyAccessToken(token: string): JwtPayload {
     return jwt.verify(token, env.JWT_SECRET) as JwtPayload;
   }
@@ -107,13 +164,18 @@ export class AuthService {
     return {
       accessToken,
       refreshToken,
-      user: {
-        id: user._id.toString(),
-        username: user.username,
-        email: user.email,
-        provider: user.provider,
-        isGuest: user.isGuest,
-      },
+      user: this.mapUser(user),
+    };
+  }
+
+  private mapUser(user: IUser): AuthTokens['user'] {
+    return {
+      id: user._id.toString(),
+      username: user.username,
+      email: user.email,
+      provider: user.provider,
+      isGuest: user.isGuest,
+      avatarId: user.avatarId ?? null,
     };
   }
 }

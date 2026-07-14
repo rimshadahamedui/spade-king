@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { User } from '../models/types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authApi, tokenStorage } from '../services/api';
 import { disconnectSocket, ensureSocketConnected } from '../services/socket';
 import { formatApiError } from '../utils/network';
@@ -12,6 +13,8 @@ interface AuthState {
   loginEmail: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, username: string) => Promise<void>;
   loginGuest: (username?: string) => Promise<void>;
+  updateProfile: (username: string) => Promise<void>;
+  updateAvatar: (avatarId: number) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -46,10 +49,18 @@ export const useAuthStore = create<AuthState>((set) => ({
   hydrated: false,
 
   hydrate: async () => {
-    const user = await tokenStorage.getUser<User>();
+    const storedUser = await tokenStorage.getUser<User>();
     const accessToken = await tokenStorage.getAccessToken();
-    if (user && accessToken) {
-      set({ user, accessToken, hydrated: true });
+    if (storedUser && accessToken) {
+      try {
+        const res = await authApi.me();
+        const user = res.data.data as User;
+        const refreshToken = (await AsyncStorage.getItem('r_spade_refresh_token')) ?? '';
+        await tokenStorage.save(accessToken, refreshToken, user);
+        set({ user, accessToken, hydrated: true });
+      } catch {
+        set({ user: storedUser, accessToken, hydrated: true });
+      }
       await connectSocketBestEffort();
     } else {
       set({ hydrated: true });
@@ -91,6 +102,32 @@ export const useAuthStore = create<AuthState>((set) => ({
       await persistAuth(data);
       set({ user: data.user, accessToken: data.accessToken });
       await connectSocketBestEffort();
+    } catch (e) {
+      throw new Error(formatApiError(e));
+    }
+  },
+
+  updateProfile: async (username) => {
+    try {
+      const res = await authApi.updateProfile(username.trim());
+      const user = res.data.data as User;
+      const accessToken = (await tokenStorage.getAccessToken()) ?? '';
+      const refreshToken = (await AsyncStorage.getItem('r_spade_refresh_token')) ?? '';
+      await tokenStorage.save(accessToken, refreshToken, user);
+      set({ user });
+    } catch (e) {
+      throw new Error(formatApiError(e));
+    }
+  },
+
+  updateAvatar: async (avatarId) => {
+    try {
+      const res = await authApi.updateAvatar(avatarId);
+      const user = res.data.data as User;
+      const accessToken = (await tokenStorage.getAccessToken()) ?? '';
+      const refreshToken = (await AsyncStorage.getItem('r_spade_refresh_token')) ?? '';
+      await tokenStorage.save(accessToken, refreshToken, user);
+      set({ user });
     } catch (e) {
       throw new Error(formatApiError(e));
     }

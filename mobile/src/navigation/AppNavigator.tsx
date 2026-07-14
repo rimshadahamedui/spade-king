@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -8,6 +8,7 @@ import { queryClient } from '../queryClient';
 import { useSocketBindings } from '../hooks/useSocketBindings';
 import { AuthScreen } from '../screens/AuthScreen';
 import { LobbyScreen } from '../screens/LobbyScreen';
+import { ProfileScreen } from '../screens/ProfileScreen';
 import { RoomListScreen } from '../screens/RoomListScreen';
 import { RoomScreen } from '../screens/RoomScreen';
 import { GameScreen } from '../screens/GameScreen';
@@ -17,6 +18,7 @@ import { MatchDetailScreen } from '../screens/MatchDetailScreen';
 import { LeaderboardScreen } from '../screens/LeaderboardScreen';
 import { PlayerRecordsScreen } from '../screens/PlayerRecordsScreen';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { AvatarPickerOverlay } from '../components/AvatarPickerOverlay';
 import { useAuthStore } from '../store/authStore';
 import { colors, fonts } from '../theme';
 import type { RootStackParamList } from './types';
@@ -38,10 +40,15 @@ const navTheme = {
 
 function RootNavigator() {
   const user = useAuthStore((s) => s.user);
+  const updateAvatar = useAuthStore((s) => s.updateAvatar);
+  const [avatarBusy, setAvatarBusy] = useState(false);
   useSocketBindings();
 
+  const needsAvatar = !!user && !user.avatarId;
+
   return (
-    <Stack.Navigator
+    <>
+      <Stack.Navigator
       screenOptions={{
         headerShown: false,
         animation: 'none',
@@ -53,6 +60,7 @@ function RootNavigator() {
       ) : (
         <>
           <Stack.Screen name="Lobby" component={LobbyScreen} />
+          <Stack.Screen name="Profile" component={ProfileScreen} />
           <Stack.Screen name="RoomList" component={RoomListScreen} />
           <Stack.Screen name="Room">
             {() => (
@@ -76,6 +84,23 @@ function RootNavigator() {
         </>
       )}
     </Stack.Navigator>
+
+      <AvatarPickerOverlay
+        visible={needsAvatar}
+        required
+        busy={avatarBusy}
+        title="Choose your legend"
+        subtitle="You need an avatar before joining the tables."
+        onSelect={async (avatarId) => {
+          setAvatarBusy(true);
+          try {
+            await updateAvatar(avatarId);
+          } finally {
+            setAvatarBusy(false);
+          }
+        }}
+      />
+    </>
   );
 }
 

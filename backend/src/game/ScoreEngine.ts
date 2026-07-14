@@ -42,4 +42,11 @@ export class ScoreEngine {
     }
     return [...totals.entries()].filter(([, s]) => s === max).map(([id]) => id);
   }
+
+  /** True when 1st and 2nd place share the same total — triggers an extra round. */
+  static isTopTwoTied(totals: Map<string, number>): boolean {
+    const scores = [...totals.values()].sort((a, b) => b - a);
+    if (scores.length < 2) return false;
+    return scores[0] === scores[1];
+  }
 }

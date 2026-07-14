@@ -18,6 +18,34 @@ async function assertAdmin(req: AuthedRequest): Promise<void> {
 }
 
 export class AdminController {
+  listRooms = async (req: AuthedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      await assertAdmin(req);
+      res.json({ success: true, data: roomService.listAllLiveRooms() });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  closeRoom = async (req: AuthedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      await assertAdmin(req);
+      const roomId = String(req.params.roomId ?? '');
+      const closedId = await roomService.adminCloseRoom(roomId);
+      if (!closedId) {
+        res.status(404).json({ success: false, message: 'Room not found' });
+        return;
+      }
+      const io = getSocketIo();
+      if (io) {
+        io.to(closedId).emit(SOCKET_EVENTS.ROOM_CLOSED, { roomId: closedId, reason: 'admin_purge' });
+      }
+      res.json({ success: true, data: { roomId: closedId } });
+    } catch (error) {
+      next(error);
+    }
+  };
+
   purgeRooms = async (req: AuthedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       await assertAdmin(req);

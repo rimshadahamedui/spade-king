@@ -6,6 +6,8 @@ export const SOCKET_EVENTS = {
   CREATE_ROOM: 'createRoom',
   JOIN_ROOM: 'joinRoom',
   LEAVE_ROOM: 'leaveRoom',
+  WATCH_ROOM: 'watchRoom',
+  LEAVE_WATCH: 'leaveWatch',
   CONFIRM_START: 'confirmStart',
   PLAYER_READY: 'playerReady',
   REQUEST_RESHUFFLE: 'requestReshuffle',

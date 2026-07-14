@@ -25,6 +25,13 @@ import type { RootStackParamList } from '../navigation/types';
 import { colors, fonts, radii, spacing, surfaces } from '../theme';
 import { clearRoomSyncGuards } from '../utils/roomSyncGuards';
 import { useIsPortrait } from '../hooks/useIsPortrait';
+import {
+  inferPublicRoomStatus,
+  isPublicRoomJoinable,
+  isPublicRoomWatchable,
+  publicRoomStatusLabel,
+  type PublicRoomStatus,
+} from '../utils/publicRoomStatus';
 
 const CARD_WIDTH = 252;
 const CARD_HEIGHT = 104;
@@ -35,33 +42,53 @@ type PublicRoom = {
   roomType: number;
   players: number;
   maxPlayers: number;
+  phase?: string;
+  status: PublicRoomStatus;
 };
 
 function RoomCard({
   room,
   disabled,
   onJoin,
+  onWatch,
   portrait,
 }: {
   room: PublicRoom;
   disabled: boolean;
   onJoin: () => void;
+  onWatch: () => void;
   portrait?: boolean;
 }) {
   const isFull = room.players >= room.maxPlayers;
+  const joinable = isPublicRoomJoinable(room.status) && !isFull;
+  const watchable = isPublicRoomWatchable(room.status) && isFull;
+  const statusLabel = publicRoomStatusLabel(room.status);
+  const cardDisabled = disabled || (!joinable && !watchable);
 
   return (
     <Pressable
-      disabled={disabled}
-      onPress={onJoin}
+      disabled={cardDisabled}
+      onPress={watchable ? onWatch : onJoin}
       style={({ pressed }) => [
         styles.roomCard,
         portrait && styles.roomCardPortrait,
-        isFull && styles.roomCardFull,
-        pressed && !isFull && styles.roomCardPressed,
+        !joinable && !watchable && styles.roomCardLocked,
+        isFull && joinable && styles.roomCardFull,
+        pressed && (joinable || watchable) && styles.roomCardPressed,
       ]}
     >
-      <Text style={styles.roomCodeLabel}>Room</Text>
+      <View style={styles.roomCodeRow}>
+        <Text style={styles.roomCodeLabel}>Room</Text>
+        <View
+          style={[
+            styles.statusPill,
+            room.status === 'playing' && styles.statusPillPlaying,
+            room.status === 'starting' && styles.statusPillStarting,
+          ]}
+        >
+          <Text style={styles.statusPillText}>{statusLabel}</Text>
+        </View>
+      </View>
       <Text style={styles.roomCode} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
         {room.inviteCode}
       </Text>
@@ -71,12 +98,14 @@ function RoomCard({
           <Text style={[styles.seats, isFull && styles.seatsFull]}>
             {room.players}/{room.maxPlayers}
           </Text>
-          <Text style={styles.seatsHint}>{isFull ? 'Full' : 'seats'}</Text>
+          <Text style={styles.seatsHint}>
+            {room.status === 'playing' ? 'in game' : isFull ? 'Full' : 'seats'}
+          </Text>
         </View>
 
-        <View style={[styles.joinPill, isFull && styles.joinPillFull]}>
-          <Text style={[styles.joinText, isFull && styles.joinTextFull]}>
-            {isFull ? '—' : 'Join'}
+        <View style={[styles.joinPill, watchable && styles.watchPill, !joinable && !watchable && styles.joinPillFull]}>
+          <Text style={[styles.joinText, watchable && styles.watchText, !joinable && !watchable && styles.joinTextFull]}>
+            {joinable ? 'Join' : watchable ? 'Watch' : '—'}
           </Text>
         </View>
       </View>
@@ -92,6 +121,7 @@ export function RoomListScreen() {
   const isGuest = user?.isGuest ?? false;
   const setRoom = useGameStore((s) => s.setRoom);
   const setSnapshot = useGameStore((s) => s.setSnapshot);
+  const setSpectatorMode = useGameStore((s) => s.setSpectatorMode);
   const [busy, setBusy] = useState(false);
   const [search, setSearch] = useState('');
   const insets = useSafeAreaInsets();
@@ -101,7 +131,11 @@ export function RoomListScreen() {
     queryKey: ['publicRooms', roomType],
     queryFn: async () => {
       const res = await roomApi.listPublic(roomType);
-      return res.data.data as PublicRoom[];
+      const rows = res.data.data as Array<Partial<PublicRoom> & Pick<PublicRoom, 'id' | 'inviteCode' | 'roomType' | 'players' | 'maxPlayers'>>;
+      return rows.map((room) => ({
+        ...room,
+        status: room.status ?? inferPublicRoomStatus(room.phase),
+      })) as PublicRoom[];
     },
     refetchInterval: 5000,
     retry: 1,
@@ -121,6 +155,13 @@ export function RoomListScreen() {
     return all.filter((r) => r.inviteCode.toUpperCase().includes(q));
   }, [publicRooms.data, search]);
 
+  const roomSummary = useMemo(() => {
+    const open = rooms.filter((r) => r.status === 'open').length;
+    const playing = rooms.filter((r) => r.status === 'playing').length;
+    const starting = rooms.filter((r) => r.status === 'starting').length;
+    return { open, playing, starting };
+  }, [rooms]);
+
   const create = async () => {
     if (isGuest) {
       Alert.alert(
@@ -138,6 +179,7 @@ export function RoomListScreen() {
       })) as { success: boolean; data: Parameters<typeof setRoom>[0] };
       if (!res.success) throw new Error('Failed to create room');
       clearRoomSyncGuards();
+      setSpectatorMode(false);
       setRoom(res.data);
       navigation.navigate('Room');
     } catch (e) {
@@ -163,6 +205,7 @@ export function RoomListScreen() {
       };
       if (!res.success) throw new Error(res.message ?? 'Join failed');
       clearRoomSyncGuards();
+      setSpectatorMode(false);
       setRoom(res.data);
       if (res.data.phase === 'countdown' && res.data.countdownRemaining != null) {
         useGameStore.getState().setCountdown(res.data.countdownRemaining);
@@ -175,6 +218,33 @@ export function RoomListScreen() {
       navigation.navigate(inGame ? 'Game' : 'Room');
     } catch (e) {
       Alert.alert('Join failed', formatApiError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const watch = async (inviteCode: string) => {
+    setBusy(true);
+    try {
+      await ensureSocketConnected();
+      const res = (await emitAck<{ success: boolean; data: unknown; message?: string }>(
+        SOCKET_EVENTS.WATCH_ROOM,
+        { inviteCode },
+      )) as {
+        success: boolean;
+        data: Parameters<typeof setRoom>[0] & {
+          snapshot?: Parameters<typeof setSnapshot>[0];
+        };
+        message?: string;
+      };
+      if (!res.success) throw new Error(res.message ?? 'Could not watch table');
+      clearRoomSyncGuards();
+      setSpectatorMode(true);
+      setRoom(res.data);
+      if (res.data.snapshot) setSnapshot(res.data.snapshot);
+      navigation.navigate('Game');
+    } catch (e) {
+      Alert.alert('Watch failed', formatApiError(e));
     } finally {
       setBusy(false);
     }
@@ -196,8 +266,10 @@ export function RoomListScreen() {
           <View style={styles.heroText}>
             <Text style={styles.title}>{CATEGORY_LABELS[roomType]}</Text>
             <Text style={styles.sub}>
-              {rooms.length} open {rooms.length === 1 ? 'table' : 'tables'}
-              {isGuest ? ' · Guests can join only' : ''}
+              {roomSummary.open} open
+              {roomSummary.starting > 0 ? ` · ${roomSummary.starting} starting` : ''}
+              {roomSummary.playing > 0 ? ` · ${roomSummary.playing} playing` : ''}
+              {isGuest ? ' · Guests can join open tables only' : ''}
             </Text>
           </View>
 
@@ -212,7 +284,7 @@ export function RoomListScreen() {
             />
           </View>
 
-          <Text style={styles.sectionLabel}>Open tables</Text>
+          <Text style={styles.sectionLabel}>Tables</Text>
 
           <View style={[styles.listArea, isPortrait && styles.listAreaPortrait]}>
             {rooms.length === 0 ? (
@@ -244,7 +316,14 @@ export function RoomListScreen() {
                     room={item}
                     disabled={busy}
                     portrait={isPortrait}
-                    onJoin={() => join(item.inviteCode)}
+                    onJoin={() => {
+                      if (!isPublicRoomJoinable(item.status)) return;
+                      void join(item.inviteCode);
+                    }}
+                    onWatch={() => {
+                      if (!isPublicRoomWatchable(item.status)) return;
+                      void watch(item.inviteCode);
+                    }}
                   />
                 )}
               />
@@ -345,15 +424,44 @@ const styles = StyleSheet.create({
     minHeight: CARD_HEIGHT,
     height: undefined,
   },
-  roomCardFull: { opacity: 0.5 },
+  roomCardFull: { opacity: 0.72 },
+  roomCardLocked: { opacity: 0.82 },
   roomCardPressed: { borderColor: colors.accentBright },
+  roomCodeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
   roomCodeLabel: {
     color: colors.textDim,
     fontFamily: fonts.bodyMedium,
     fontSize: 9,
     letterSpacing: 1.4,
     textTransform: 'uppercase',
-    textAlign: 'center',
+  },
+  statusPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: radii.pill,
+    backgroundColor: 'rgba(45,182,122,0.15)',
+    borderWidth: 1,
+    borderColor: colors.emeraldBright,
+  },
+  statusPillStarting: {
+    backgroundColor: 'rgba(201,162,39,0.15)',
+    borderColor: colors.accentBright,
+  },
+  statusPillPlaying: {
+    backgroundColor: 'rgba(232,93,93,0.12)',
+    borderColor: colors.danger,
+  },
+  statusPillText: {
+    color: colors.cream,
+    fontFamily: fonts.bodyBold,
+    fontSize: 8,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
   },
   roomCode: {
     width: '100%',
@@ -362,7 +470,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     letterSpacing: 3,
     textAlign: 'center',
-    marginTop: 2,
+    marginTop: 4,
     marginBottom: 4,
   },
   cardFooter: {
@@ -395,6 +503,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.35)',
     borderColor: colors.border,
   },
+  watchPill: {
+    backgroundColor: 'rgba(91,141,239,0.2)',
+    borderColor: '#5B8DEF',
+  },
   joinText: {
     color: colors.ink,
     fontFamily: fonts.bodyBold,
@@ -403,6 +515,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   joinTextFull: { color: colors.textDim },
+  watchText: { color: colors.cream },
   emptyCard: {
     flex: 1,
     maxWidth: 360,

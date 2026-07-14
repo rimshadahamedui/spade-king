@@ -74,6 +74,7 @@ export interface GamePlayerState {
   userId: string;
   username: string;
   seatIndex: number;
+  avatarId?: number;
   hand: Card[];
   bid: number | null;
   tricksWon: number;
@@ -86,6 +87,7 @@ export interface PublicGamePlayerState {
   userId: string;
   username: string;
   seatIndex: number;
+  avatarId?: number;
   handCount: number;
   bid: number | null;
   tricksWon: number;

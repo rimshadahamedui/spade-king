@@ -62,7 +62,30 @@ export class AuthController {
     }
   };
 
-  me = async (req: AuthedRequest, res: Response): Promise<void> => {
-    res.json({ success: true, data: req.user });
+  me = async (req: AuthedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const user = await authService.getProfile(req.user!.sub);
+      res.json({ success: true, data: user });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  updateProfile = async (req: AuthedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const user = await authService.updateUsername(req.user!.sub, req.body.username);
+      res.json({ success: true, data: user });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  updateAvatar = async (req: AuthedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const user = await authService.updateAvatar(req.user!.sub, req.body.avatarId);
+      res.json({ success: true, data: user });
+    } catch (error) {
+      next(error);
+    }
   };
 }
